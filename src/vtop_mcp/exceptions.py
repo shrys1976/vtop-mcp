@@ -13,3 +13,7 @@ class HostNotAllowedError(VtopMcpError):
 
 class UnexpectedRedirectError(VtopMcpError):
     """Redirect target is off-host or redirect loop exceeded."""
+
+
+class OperationNotAllowedError(VtopMcpError):
+    """Operation is unknown or parameters are not allowlisted."""

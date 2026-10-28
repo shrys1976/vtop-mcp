@@ -41,5 +41,5 @@ async def test_redirect_to_foreign_host_blocked(tmp_path) -> None:
     )
     async with VtopHttpClient(settings) as client:
         with pytest.raises(UnexpectedRedirectError):
-            await client.send("GET", "/vtop/login")
+            await client.request_operation("auth.login_landing")
     assert route.called

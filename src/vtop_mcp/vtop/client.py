@@ -11,6 +11,11 @@ import httpx
 
 from vtop_mcp.config import Settings
 from vtop_mcp.exceptions import HostNotAllowedError, UnexpectedRedirectError
+from vtop_mcp.vtop.operations import (
+    get_operation,
+    render_path,
+    validate_and_split_params,
+)
 from vtop_mcp.vtop.auth.session_store import (
     SessionData,
     SessionStore,
@@ -97,7 +102,23 @@ class VtopHttpClient:
     async def __aexit__(self, *args: object) -> None:
         await self.aclose()
 
-    async def send(
+    async def request_operation(
+        self,
+        operation_id: str,
+        params: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        """Execute one allowlisted VTOP operation (sole public HTTP entry)."""
+        spec = get_operation(operation_id)
+        query, body, path_params = validate_and_split_params(spec, params)
+        path = render_path(spec, path_params)
+        return await self._send(
+            spec.method,
+            path,
+            params=query or None,
+            data=body or None,
+        )
+
+    async def _send(
         self,
         method: str,
         path: str,
@@ -107,7 +128,7 @@ class VtopHttpClient:
         content: bytes | None = None,
         headers: dict[str, str] | None = None,
     ) -> httpx.Response:
-        """Send one request with safe redirect handling (M3 wraps with allowlist)."""
+        """Internal transport with safe redirect handling."""
         url = resolve_path(self._settings.base_url, path)
         redirects = 0
         while True:
