@@ -11,6 +11,7 @@ from vtop_mcp.vtop.constants import (
     ALLOWED_HOSTNAME,
     BASE_URL,
     DEFAULT_MAX_CAPTCHA_RETRIES,
+    DEFAULT_MAX_RECAPTCHA_REFRESHES,
 )
 
 
@@ -35,6 +36,14 @@ class Settings(BaseSettings):
     max_captcha_retries: int = Field(
         default=DEFAULT_MAX_CAPTCHA_RETRIES,
         validation_alias="VTOP_MAX_CAPTCHA_RETRIES",
+    )
+    max_recaptcha_refreshes: int = Field(
+        default=DEFAULT_MAX_RECAPTCHA_REFRESHES,
+        validation_alias="VTOP_MAX_RECAPTCHA_REFRESHES",
+        description=(
+            "How many times to restart the login page when VTOP shows "
+            "Google reCAPTCHA before giving up."
+        ),
     )
     session_file: Path = Field(
         default_factory=default_session_path,

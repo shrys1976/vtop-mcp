@@ -39,7 +39,7 @@ async def test_login_recaptcha_retry_then_raises(tmp_path, monkeypatch) -> None:
     settings = Settings(
         session_file=tmp_path / "s.enc",
         session_key_env=Fernet.generate_key().decode(),
-        max_captcha_retries=2,
+        max_recaptcha_refreshes=2,
         regno="21BCE0000",
         password="secret",
     )
@@ -57,6 +57,49 @@ async def test_login_recaptcha_retry_then_raises(tmp_path, monkeypatch) -> None:
         flow = LoginFlow(client, settings)
         with pytest.raises(RecaptchaOnlyError):
             await flow.login()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_login_recaptcha_refresh_until_text_captcha(tmp_path, monkeypatch) -> None:
+    settings = Settings(
+        session_file=tmp_path / "s.enc",
+        session_key_env=Fernet.generate_key().decode(),
+        max_recaptcha_refreshes=5,
+        regno="21BCE0000",
+        password="secret",
+    )
+    respx.get(f"{BASE_URL}/vtop/login").mock(
+        return_value=httpx.Response(200, text=_landing_html())
+    )
+    respx.post(f"{BASE_URL}/vtop/prelogin/setup").mock(
+        return_value=httpx.Response(302, headers={"Location": "/vtop/init/page"})
+    )
+    init_calls = {"n": 0}
+
+    def _init_response(_request: httpx.Request) -> httpx.Response:
+        init_calls["n"] += 1
+        captcha_type = CAPTCHA_TYPE_GOOGLE if init_calls["n"] < 3 else 1
+        return httpx.Response(200, text=_init_html(captcha_type=captcha_type))
+
+    respx.get(f"{BASE_URL}/vtop/init/page").mock(side_effect=_init_response)
+    respx.post(f"{BASE_URL}/vtop/login").mock(
+        return_value=httpx.Response(
+            200,
+            text='<form id="otpVerificationForm"><input name="_csrf" value="otp-csrf"/></form>',
+        )
+    )
+    monkeypatch.setattr(
+        "vtop_mcp.vtop.auth.login.solve_captcha_base64",
+        lambda _b64: "ABCDEF",
+    )
+
+    async with VtopHttpClient(settings) as client:
+        flow = LoginFlow(client, settings)
+        result = await flow.login()
+
+    assert result.status == "otp_required"
+    assert init_calls["n"] >= 3
 
 
 @pytest.mark.asyncio

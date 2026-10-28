@@ -94,10 +94,12 @@ class LoginFlow:
 
             self._client.clear_session()
 
-        raise RecaptchaOnlyError(
-            "Could not obtain a built-in text captcha after "
-            f"{self._settings.max_captcha_retries} attempts. "
-            "VTOP may be serving Google reCAPTCHA only."
+        return LoginResult(
+            status="captcha_failed",
+            message=(
+                f"Login failed after {self._settings.max_captcha_retries} "
+                "captcha attempts (wrong answer or solve error)."
+            ),
         )
 
     async def verify_otp(self, otp: str, *, regno: str | None = None) -> LoginResult:
@@ -133,20 +135,7 @@ class LoginFlow:
         return loaded
 
     async def _attempt_login(self, username: str, password: str) -> LoginResult:
-        landing = await self._client.request_operation("auth.login_landing")
-        csrf = extract_csrf(landing.text)
-        if not csrf:
-            return LoginResult(status="captcha_failed", message="Missing CSRF on landing")
-
-        await self._client.request_operation(
-            "auth.prelogin_setup",
-            {FIELD_CSRF: csrf, FIELD_PRELOGIN_FLAG: PRELOGIN_FLAG_STUDENT},
-        )
-
-        init = await self._client.request_operation("auth.init_page")
-        init_html = init.text
-        if detect_captcha_type(init_html) == CAPTCHA_TYPE_GOOGLE:
-            return LoginResult(status="captcha_failed", message="Google reCAPTCHA shown")
+        init_html = await self._load_init_page_with_text_captcha()
 
         captcha_b64 = extract_captcha_jpeg_base64(init_html)
         if not captcha_b64:
@@ -156,7 +145,9 @@ class LoginFlow:
             return LoginResult(status="captcha_failed", message="Captcha image missing")
 
         captcha_text = solve_captcha_base64(captcha_b64)
-        login_csrf = extract_csrf(init_html) or csrf
+        login_csrf = extract_csrf(init_html)
+        if not login_csrf:
+            return LoginResult(status="captcha_failed", message="Missing CSRF on init page")
 
         submit = await self._client.request_operation(
             "auth.login_submit",
@@ -168,6 +159,37 @@ class LoginFlow:
             },
         )
         return self._finalize(submit.text, username)
+
+    async def _load_init_page_with_text_captcha(self) -> str:
+        """Restart landing → prelogin → init until VTOP serves built-in captcha."""
+        limit = self._settings.max_recaptcha_refreshes
+        for refresh in range(1, limit + 1):
+            landing = await self._client.request_operation("auth.login_landing")
+            csrf = extract_csrf(landing.text)
+            if not csrf:
+                raise CaptchaSolveError("Missing CSRF on landing")
+
+            await self._client.request_operation(
+                "auth.prelogin_setup",
+                {FIELD_CSRF: csrf, FIELD_PRELOGIN_FLAG: PRELOGIN_FLAG_STUDENT},
+            )
+
+            init = await self._client.request_operation("auth.init_page")
+            init_html = init.text
+            if detect_captcha_type(init_html) != CAPTCHA_TYPE_GOOGLE:
+                return init_html
+
+            logger.info(
+                "Google reCAPTCHA on init page; reloading login (%s/%s)",
+                refresh,
+                limit,
+            )
+            self._client.clear_session()
+
+        raise RecaptchaOnlyError(
+            "Could not obtain a built-in text captcha after "
+            f"{limit} login reloads. VTOP kept serving Google reCAPTCHA."
+        )
 
     def _finalize(self, html: str, regno: str) -> LoginResult:
         if page_has_otp_form(html):

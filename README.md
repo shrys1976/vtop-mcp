@@ -9,7 +9,7 @@ Read-only [Model Context Protocol](https://modelcontextprotocol.io/) server for 
 - Stdio MCP server (Claude Desktop, Cursor, or any stdio-capable MCP host)
 - Strict allowlist of VTOP HTTP operations (read-only; no registration/payment/profile edits)
 - Encrypted session on disk; credentials via environment or OS keyring
-- Text captcha login with retry when Google reCAPTCHA appears (may fail if only reCAPTCHA is served)
+- Text captcha login; reloads the login flow when Google reCAPTCHA appears until the built-in captcha is served (configurable via `VTOP_MAX_RECAPTCHA_REFRESHES`, default 60)
 
 ## Requirements
 
