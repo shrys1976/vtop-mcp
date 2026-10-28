@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     base_url: str = Field(default=BASE_URL, validation_alias="VTOP_BASE_URL")
     regno: str | None = Field(default=None, validation_alias="VTOP_REGNO")
     password: str | None = Field(default=None, validation_alias="VTOP_PASSWORD")
+    otp: str | None = Field(default=None, validation_alias="VTOP_OTP")
     max_captcha_retries: int = Field(
         default=DEFAULT_MAX_CAPTCHA_RETRIES,
         validation_alias="VTOP_MAX_CAPTCHA_RETRIES",

@@ -29,6 +29,7 @@ class SessionData:
     saved_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     regno: str | None = None
     authenticated: bool = False
+    authorized_id: str | None = None
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
@@ -36,6 +37,7 @@ class SessionData:
             "saved_at": self.saved_at.isoformat(),
             "regno": self.regno,
             "authenticated": self.authenticated,
+            "authorized_id": self.authorized_id,
         }
 
     @classmethod
@@ -51,6 +53,7 @@ class SessionData:
             saved_at=saved_at,
             regno=payload.get("regno"),
             authenticated=bool(payload.get("authenticated")),
+            authorized_id=payload.get("authorized_id"),
         )
 
 

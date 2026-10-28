@@ -17,3 +17,19 @@ class UnexpectedRedirectError(VtopMcpError):
 
 class OperationNotAllowedError(VtopMcpError):
     """Operation is unknown or parameters are not allowlisted."""
+
+
+class CredentialsMissingError(VtopMcpError):
+    """VTOP username/password not configured."""
+
+
+class CaptchaSolveError(VtopMcpError):
+    """Built-in captcha OCR failed."""
+
+
+class RecaptchaOnlyError(VtopMcpError):
+    """VTOP kept serving Google reCAPTCHA after retry cap."""
+
+
+class InvalidCredentialsError(VtopMcpError):
+    """VTOP rejected username or password."""
