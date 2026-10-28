@@ -30,6 +30,7 @@ class SessionData:
     regno: str | None = None
     authenticated: bool = False
     authorized_id: str | None = None
+    csrf: str | None = None
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
@@ -38,6 +39,7 @@ class SessionData:
             "regno": self.regno,
             "authenticated": self.authenticated,
             "authorized_id": self.authorized_id,
+            "csrf": self.csrf,
         }
 
     @classmethod
@@ -54,6 +56,7 @@ class SessionData:
             regno=payload.get("regno"),
             authenticated=bool(payload.get("authenticated")),
             authorized_id=payload.get("authorized_id"),
+            csrf=payload.get("csrf"),
         )
 
 
@@ -114,8 +117,24 @@ class SessionStore:
             if self._settings.session_key_env:
                 self._fernet_key = self._settings.session_key_env
             else:
-                self._fernet_key = _load_or_create_keyring_key()
+                self._fernet_key = self._load_or_create_key()
         return Fernet(self._fernet_key.encode())
+
+    def _load_or_create_key(self) -> str:
+        """Prefer the OS keyring, and mirror the key to disk for headless WSL."""
+        key_path = self._settings.session_file.parent / "session.key"
+        keyring_key = _read_keyring_key()
+        if keyring_key:
+            _write_key_file(key_path, keyring_key)
+            return keyring_key
+        if key_path.is_file():
+            stored = key_path.read_text(encoding="utf-8").strip()
+            if stored:
+                return stored
+        created = Fernet.generate_key().decode()
+        _write_keyring_key(created)
+        _write_key_file(key_path, created)
+        return created
 
     def load(self) -> SessionData | None:
         if not self._path.is_file():
@@ -140,21 +159,29 @@ class SessionStore:
             self._path.unlink()
 
 
-def _load_or_create_keyring_key() -> str:
+def _read_keyring_key() -> str | None:
     import keyring
 
     try:
-        existing = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
+        return keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
     except KeyringError:
-        logger.warning("Keyring unavailable; generating ephemeral session key")
-        return Fernet.generate_key().decode()
+        logger.info("OS keyring unavailable; using the on-disk session key")
+        return None
 
-    if existing:
-        return existing
 
-    created = Fernet.generate_key().decode()
+def _write_keyring_key(key: str) -> None:
+    import keyring
+
     try:
-        keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, created)
+        keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, key)
     except KeyringError:
-        logger.warning("Could not persist session key to keyring")
-    return created
+        logger.info("Could not store the session key in the OS keyring")
+
+
+def _write_key_file(path: Path, key: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(key, encoding="utf-8")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        logger.info("Could not restrict permissions on %s", path)

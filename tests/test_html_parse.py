@@ -20,5 +20,14 @@ def test_extract_csrf_and_captcha_from_fixture() -> None:
     assert detect_captcha_type(html) == CAPTCHA_TYPE_BUILTIN
 
 
+def test_login_form_ignores_dashboard_chrome() -> None:
+    from vtop_mcp.vtop.html_parse import page_has_login_form
+
+    dashboard = '<a href="/vtop/prelogin/setup">menu</a><input id="username" />'
+    assert page_has_login_form(dashboard) is False
+    login = '<form id="vtopLoginForm"></form>'
+    assert page_has_login_form(login) is True
+
+
 def test_otp_form_detection() -> None:
     assert page_has_otp_form('<form id="otpVerificationForm"></form>')

@@ -59,12 +59,13 @@ def extract_captcha_jpeg_base64(html: str) -> str | None:
 
 
 def page_has_login_form(html: str) -> bool:
-    return (
-        "vtopLoginForm" in html
-        or 'name="captchaStr"' in html
-        or 'id="username"' in html
-        or "prelogin/setup" in html
-    )
+    """True only for the student login form, not shared dashboard chrome."""
+    if "vtopLoginForm" in html:
+        return True
+    soup = BeautifulSoup(html, "html.parser")
+    captcha = soup.find("input", attrs={"name": "captchaStr"})
+    username = soup.find("input", attrs={"name": "username"})
+    return captcha is not None and username is not None
 
 
 def page_has_otp_form(html: str) -> bool:

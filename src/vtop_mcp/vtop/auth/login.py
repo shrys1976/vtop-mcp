@@ -6,6 +6,9 @@ import logging
 import re
 from dataclasses import dataclass
 from typing import Literal
+from urllib.parse import urlparse
+
+import httpx
 
 from vtop_mcp.config import Settings
 from vtop_mcp.exceptions import (
@@ -73,6 +76,27 @@ class _LoginCaptchaContext:
 class _OtpContext:
     csrf: str
     regno: str
+
+
+def _should_retry_captcha(result: LoginResult) -> bool:
+    """Retry only a wrong captcha answer, never a rejected session."""
+    if result.status != "captcha_failed":
+        return False
+    message = (result.message or "").lower()
+    if "login page" in message or "session" in message or "authorizedid" in message:
+        return False
+    return "captcha" in message
+
+
+def _login_rejected_message(response: httpx.Response, client: VtopHttpClient) -> str:
+    path = urlparse(str(response.url)).path or str(response.url)
+    cookie = "present" if client.has_cookie("JSESSIONID") else "missing"
+    return (
+        "VTOP showed the login page again after submit "
+        f"(HTTP {response.status_code} {path}; JSESSIONID {cookie}). "
+        "The captcha was rejected or the session cookie was not kept. "
+        "Submit one new captcha. Do not retry in a loop."
+    )
 
 
 class LoginFlow:
@@ -159,7 +183,7 @@ class LoginFlow:
 
             if result.status == "otp_required" and self._settings.otp:
                 return await self.verify_otp(self._settings.otp, regno=username)
-            if result.status != "captcha_failed":
+            if not _should_retry_captcha(result):
                 return result
 
             self._client.clear_session()
@@ -191,8 +215,7 @@ class LoginFlow:
                 "username": ctx.regno,
             },
         )
-        html = response.text
-        return await self._finalize(html, ctx.regno)
+        return await self._finalize(response, ctx.regno)
 
     def _resolve_credentials(
         self,
@@ -260,7 +283,7 @@ class LoginFlow:
                 FIELD_CAPTCHA: captcha_text,
             },
         )
-        result = await self._finalize(submit.text, ctx.username)
+        result = await self._finalize(submit, ctx.username)
         if result.status == "captcha_failed" and "captcha" in (result.message or "").lower():
             new_b64 = extract_captcha_jpeg_base64(submit.text)
             if not new_b64:
@@ -302,7 +325,8 @@ class LoginFlow:
             f"{limit} login reloads. VTOP kept serving Google reCAPTCHA."
         )
 
-    async def _finalize(self, html: str, regno: str) -> LoginResult:
+    async def _finalize(self, response: httpx.Response, regno: str) -> LoginResult:
+        html = response.text
         if page_has_otp_form(html):
             csrf = extract_csrf(html)
             if csrf:
@@ -324,6 +348,12 @@ class LoginFlow:
                     return LoginResult(status="captcha_failed", message=err)
                 raise InvalidCredentialsError(err)
             return LoginResult(status="invalid_credentials", message=err)
+
+        if page_has_login_form(html):
+            return LoginResult(
+                status="captcha_failed",
+                message=_login_rejected_message(response, self._client),
+            )
 
         return await self._confirm_dashboard_session(html, regno)
 
@@ -377,6 +407,7 @@ class LoginFlow:
         self._client.session_data.regno = regno
         self._client.session_data.authenticated = True
         self._client.session_data.authorized_id = auth_id
+        self._client.session_data.csrf = csrf
         self._client.persist_session()
         return LoginResult(
             status="authenticated",
@@ -387,4 +418,5 @@ class LoginFlow:
     def _mark_unauthenticated(self) -> None:
         self._client.session_data.authenticated = False
         self._client.session_data.authorized_id = None
+        self._client.session_data.csrf = None
         self._client.persist_session()

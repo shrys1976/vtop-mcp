@@ -52,7 +52,7 @@ app = VtopApp()
 def _session_status() -> SessionStatus:
     meta = app.client.session_data
     return SessionStatus(
-        authenticated=meta.authenticated,
+        authenticated=bool(meta.authenticated and meta.authorized_id),
         regno=meta.regno,
         session_age_seconds=app.session_age_seconds(),
         otp_pending=app.login_flow.otp_pending,

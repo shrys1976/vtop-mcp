@@ -30,22 +30,24 @@ async def resolve_auth_context(client: VtopHttpClient) -> AuthContext:
         html = response.text
         if page_has_login_form(html):
             meta.authenticated = False
+            meta.authorized_id = None
+            meta.csrf = None
             client.persist_session()
             raise NotAuthenticatedError("Session expired. Call vtop_login again.")
 
         auth_id = extract_authorized_id(html) or meta.authorized_id
-        csrf = extract_csrf(html)
+        csrf = extract_csrf(html) or meta.csrf
         if auth_id and csrf:
             meta.authorized_id = auth_id
+            meta.csrf = csrf
             meta.authenticated = True
             client.persist_session()
             return AuthContext(authorized_id=auth_id, csrf=csrf)
 
-    meta.authenticated = False
-    client.persist_session()
     raise NotAuthenticatedError(
-        "Could not resolve authorizedID and CSRF from the VTOP dashboard. "
-        "Call vtop_login again."
+        "Could not read a fresh CSRF token from VTOP. "
+        "The saved login was kept. Call list_semesters once more, "
+        "or log in again a single time."
     )
 
 

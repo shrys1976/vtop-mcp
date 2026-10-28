@@ -93,7 +93,7 @@ DEFAULT_USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/120.0.0.0 Safari/537.36"
 )
-DEFAULT_MAX_CAPTCHA_RETRIES = 15
+DEFAULT_MAX_CAPTCHA_RETRIES = 2
 DEFAULT_MAX_RECAPTCHA_REFRESHES = 60
 
 # --- Permanent v1 exclusions (audit list for operations.py in M3) ---

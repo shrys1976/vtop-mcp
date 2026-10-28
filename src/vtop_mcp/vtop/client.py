@@ -29,6 +29,30 @@ logger = logging.getLogger(__name__)
 REDIRECT_STATUS = {301, 302, 303, 307, 308}
 
 
+def _browser_headers(method: str, url: str) -> dict[str, str]:
+    """Headers VTOP's Spring CSRF check expects on browser form posts."""
+    origin = f"https://{ALLOWED_HOSTNAME}"
+    path = urlparse(url).path
+    if path.endswith("/prelogin/setup"):
+        referer = f"{origin}/vtop/login"
+    elif path.endswith("/login") and method == "POST":
+        referer = f"{origin}/vtop/init/page"
+    elif path.endswith(("validateOtp", "generateOtp", "resendOtp")):
+        referer = f"{origin}/vtop/init/page"
+    elif "/login" in path or path.endswith("/init/page"):
+        referer = f"{origin}/vtop/login"
+    else:
+        referer = f"{origin}/vtop/open/page"
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": referer,
+    }
+    if method == "POST":
+        headers["Origin"] = origin
+    return headers
+
+
 def assert_allowed_url(url: str, *, allowed_host: str = ALLOWED_HOSTNAME) -> str:
     """Validate URL host; return normalized URL string."""
     parsed = urlparse(url)
@@ -70,6 +94,9 @@ class VtopHttpClient:
             follow_redirects=False,
         )
         self._load_persisted_session()
+        if self._session_meta.authenticated and not self._session_meta.authorized_id:
+            self._session_meta.authenticated = False
+            self.persist_session()
 
     @property
     def session_data(self) -> SessionData:
@@ -87,6 +114,9 @@ class VtopHttpClient:
         self._session_meta.cookies = serialize_cookies(self._client.cookies.jar)
         self._session_meta.saved_at = datetime.now(UTC)
         self._store.save(self._session_meta)
+
+    def has_cookie(self, name: str) -> bool:
+        return any(cookie.name == name for cookie in self._client.cookies.jar)
 
     def clear_session(self) -> None:
         self._client.cookies.clear()
@@ -133,13 +163,16 @@ class VtopHttpClient:
         redirects = 0
         while True:
             assert_allowed_url(url)
+            request_headers = _browser_headers(method, url)
+            if headers:
+                request_headers.update(headers)
             response = await self._client.request(
                 method,
                 url,
                 params=params,
                 data=data,
                 content=content,
-                headers=headers,
+                headers=request_headers,
             )
             if response.status_code not in REDIRECT_STATUS:
                 return response
