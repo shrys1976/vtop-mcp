@@ -8,3 +8,17 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Secrets and local session
+.env
+.env.*
+*.enc
+session.key
+
+# Test / tool caches
+.pytest_cache/
+
+# Live VTOP captures (PII / session tokens); keep outside the repo
+screenshots/
+cal-oct-payload.webp
+cal-nov-network.webp
