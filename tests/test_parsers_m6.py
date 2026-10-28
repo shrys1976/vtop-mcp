@@ -76,8 +76,14 @@ def test_parse_spotlight_fixture() -> None:
 def test_parse_calendar_fixture() -> None:
     html = (FIXTURES / "calendar.html").read_text()
     data = parse_calendar_month(html, "01-OCT-2026")
-    assert len(data) == 1
-    assert data[0].title == "Gandhi Jayanthi"
+    assert len(data) == 2
+    holiday = next(e for e in data if e.date == "02-OCT-2026")
+    assert holiday.title == "Gandhi Jayanthi"
+    assert holiday.category == "Holiday"
+    assert holiday.class_group == "General (Semester)"
+    exam = next(e for e in data if e.date == "01-OCT-2026")
+    assert exam.category == "CAT - II"
+    assert exam.remark == "Exam Day"
 
 
 def test_parse_profile_fixture() -> None:

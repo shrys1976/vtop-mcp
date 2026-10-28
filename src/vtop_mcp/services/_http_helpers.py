@@ -10,11 +10,13 @@ import httpx
 from vtop_mcp.exceptions import VtopMcpError
 from vtop_mcp.services.bootstrap import AuthContext, auth_post_params
 from vtop_mcp.vtop.constants import (
-    DEFAULT_CLASS_GROUP_COMBINED,
+    CALENDAR_PARAM_RETURN_GET_DATES,
+    DEFAULT_CLASS_GROUP_GENERAL,
     FIELD_CAL_DATE,
     FIELD_CLASS_GROUP_ID,
     FIELD_EMP_ID,
     FIELD_NOCACHE,
+    FIELD_PARAM_RETURN_ID,
     FIELD_SEMESTER_SUB_ID,
     FIELD_SEM_SUB_ID,
     FIELD_VERIFY_MENU,
@@ -47,12 +49,20 @@ def semester_data_params(ctx: AuthContext, semester_id: str) -> dict[str, str]:
     return params
 
 
+def calendar_semester_params(ctx: AuthContext, sem_sub_id: str) -> dict[str, str]:
+    params = auth_post_params(ctx)
+    params[FIELD_SEM_SUB_ID] = sem_sub_id
+    params[FIELD_PARAM_RETURN_ID] = CALENDAR_PARAM_RETURN_GET_DATES
+    params[FIELD_X] = gmt_x_header()
+    return params
+
+
 def calendar_month_params(
     ctx: AuthContext,
     *,
     cal_date: str,
     sem_sub_id: str,
-    class_group_id: str = DEFAULT_CLASS_GROUP_COMBINED,
+    class_group_id: str = DEFAULT_CLASS_GROUP_GENERAL,
 ) -> dict[str, str]:
     params = auth_post_params(ctx)
     params[FIELD_CAL_DATE] = cal_date

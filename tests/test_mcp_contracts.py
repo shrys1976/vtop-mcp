@@ -170,19 +170,21 @@ async def test_contract_get_academic_calendar(app) -> None:
     app.client.session_data.authenticated = True
     _auth_bootstrap("semesters.html")
     preview = (FIXTURES / "calendar_preview.html").read_text()
+    semester_dates = (FIXTURES / "calendar_semester_dates.html").read_text()
     month = (FIXTURES / "calendar.html").read_text()
     respx.post(f"{BASE_URL}/vtop/academics/common/CalendarPreview").mock(
         return_value=httpx.Response(200, text=preview)
     )
     respx.post(f"{BASE_URL}/vtop/getDateForSemesterPreview").mock(
-        return_value=httpx.Response(200, text=preview)
+        return_value=httpx.Response(200, text=semester_dates)
     )
     respx.post(f"{BASE_URL}/vtop/processViewCalendar").mock(
         return_value=httpx.Response(200, text=month)
     )
     payload = await get_academic_calendar(semester_id="VL20262701")
     assert payload["ok"] is True
-    assert "events" in payload
+    assert len(payload["events"]) >= 1
+    assert payload.get("class_group_id") == "ALL"
 
 
 @pytest.mark.asyncio

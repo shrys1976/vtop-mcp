@@ -19,6 +19,7 @@ from vtop_mcp.vtop.constants import (
     FIELD_NOCACHE,
     FIELD_PASSWORD,
     FIELD_PRELOGIN_FLAG,
+    FIELD_PARAM_RETURN_ID,
     FIELD_SEMESTER_SUB_ID,
     FIELD_SEM_SUB_ID,
     FIELD_USERNAME,
@@ -351,7 +352,13 @@ OPERATIONS: dict[str, OperationSpec] = {
             PATH_CALENDAR_SEMESTER_DATES,
             "read",
             body_keys=frozenset(
-                {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_SEM_SUB_ID}
+                {
+                    FIELD_AUTHORIZED_ID,
+                    FIELD_CSRF,
+                    FIELD_SEM_SUB_ID,
+                    FIELD_PARAM_RETURN_ID,
+                    FIELD_X,
+                }
             ),
         ),
         _op(

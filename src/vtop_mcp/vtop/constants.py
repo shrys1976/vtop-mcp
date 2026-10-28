@@ -96,9 +96,12 @@ FIELD_X = "x"
 FIELD_CAL_DATE = "calDate"
 FIELD_CLASS_GROUP_ID = "classGroupId"
 FIELD_EMP_ID = "empId"
+FIELD_PARAM_RETURN_ID = "paramReturnId"
 
 NOCACHE_LITERAL = "@(new Date().getTime())"
 DEFAULT_CLASS_GROUP_COMBINED = "COMB"
+DEFAULT_CLASS_GROUP_GENERAL = "ALL"
+CALENDAR_PARAM_RETURN_GET_DATES = "getDateForSemesterPreview"
 
 # --- Cookies ---
 

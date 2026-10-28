@@ -36,6 +36,7 @@ from vtop_mcp.services.proctor import fetch_proctor
 from vtop_mcp.services.semesters import fetch_semesters
 from vtop_mcp.services.spotlight import fetch_spotlight
 from vtop_mcp.services.timetable import fetch_timetable
+from vtop_mcp.vtop.constants import DEFAULT_CLASS_GROUP_GENERAL
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -252,11 +253,24 @@ async def get_spotlight() -> dict[str, Any]:
 
 
 @mcp.tool(name="get_academic_calendar")
-async def get_academic_calendar(semester_id: str | None = None) -> dict[str, Any]:
-    """Fetch academic calendar entries; semester_id optional."""
+async def get_academic_calendar(
+    semester_id: str,
+    class_group_id: str | None = None,
+) -> dict[str, Any]:
+    """Fetch academic calendar for a semester (semester_id from list_semesters).
+
+    Defaults to class group ALL (General Semester). Pass class_group_id=COMB for
+    all groups combined.
+    """
+    group = class_group_id or DEFAULT_CLASS_GROUP_GENERAL
     try:
         ctx = await resolve_auth_context(app.client)
-        calendar = await fetch_academic_calendar(app.client, ctx, semester_id)
+        calendar = await fetch_academic_calendar(
+            app.client,
+            ctx,
+            semester_id,
+            class_group_id=group,
+        )
     except NotAuthenticatedError as exc:
         return err_payload("not_authenticated", str(exc))
     except VtopResponseError as exc:
