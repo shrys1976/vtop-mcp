@@ -12,8 +12,8 @@ Read-only mcp server for vit vellore vtop (`vtop.vit.ac.in`).
 ## Requirements
 
 - Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended)
-
+- uv
+  
 ## Setup
 
 ```bash
@@ -28,9 +28,7 @@ uv sync
 
 ```bash
 export VTOP_REGNO="YOUR_USERNAME"
-export VTOP_PASSWORD="your-vtop-password"
-# Optional: auto-submit OTP when VTOP emails a code
-export VTOP_OTP="123456"
+export VTOP_PASSWORD="your-vtop-USERNAME"
 ```
 
 **Option B -- keyring**
@@ -38,7 +36,7 @@ export VTOP_OTP="123456"
 Store JSON in keyring service `vtop-mcp`, username `credentials`:
 
 ```json
-{"regno": "YOUR_REGNO", "password": "your-vtop-password"}
+{"regno": "YOUR_USERNAME", "password": "your-vtop-password"}
 ```
 
 Session encryption uses keyring entry `vtop-mcp` / `session-key` (created on first run).
@@ -71,7 +69,7 @@ Transport: **stdio** (default). Logs go to **stderr**; do not print to stdout ex
       "args": [
         "run",
         "--directory",
-        "/home/shrys/dev/vtop_mcp",
+        "/home/user/vtop_mcp",
         "vtop-mcp"
       ]
     }
@@ -91,23 +89,10 @@ Transport: **stdio** (default). Logs go to **stderr**; do not print to stdout ex
       "args": [
         "run",
         "--directory",
-        "/home/shrys/dev/vtop_mcp",
+        "/home/user/vtop_mcp",
         "vtop-mcp"
       ]
     }
   }
 }
 ```
-
-## Local dev scripts
-
-```bash
-# Login page / prelogin probe (no secrets printed)
-uv run python scripts/discovery_probe.py
-
-# Attempt login with env/keyring credentials
-uv run python scripts/login_probe.py
-```
-
-
-
