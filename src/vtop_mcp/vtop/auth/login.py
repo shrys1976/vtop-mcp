@@ -32,6 +32,7 @@ from vtop_mcp.vtop.html_parse import (
     detect_captcha_type,
     extract_authorized_id,
     extract_captcha_jpeg_base64,
+    describe_form_fields,
     extract_csrf,
     extract_login_error,
     page_has_login_form,
@@ -45,6 +46,8 @@ LoginStatus = Literal[
     "otp_required",
     "invalid_credentials",
     "captcha_failed",
+    "login_rejected",
+    "dashboard_unparsed",
 ]
 
 
@@ -351,55 +354,53 @@ class LoginFlow:
 
         if page_has_login_form(html):
             return LoginResult(
-                status="captcha_failed",
+                status="login_rejected",
                 message=_login_rejected_message(response, self._client),
             )
 
-        return await self._confirm_dashboard_session(html, regno)
+        return await self._confirm_dashboard_session(response, html, regno)
 
-    async def _confirm_dashboard_session(self, submit_html: str, regno: str) -> LoginResult:
-        """Fetch the post-login shell and require authorizedID plus CSRF."""
-        dashboard = await self._client.request_operation("read.open_page")
-        dashboard_html = dashboard.text
-        if page_has_login_form(dashboard_html):
-            self._mark_unauthenticated()
-            return LoginResult(
-                status="captcha_failed",
-                message=(
-                    "VTOP returned the login page after submit. "
-                    "The session was not established."
-                ),
-            )
+    async def _confirm_dashboard_session(
+        self,
+        response: httpx.Response,
+        submit_html: str,
+        regno: str,
+    ) -> LoginResult:
+        """Read csrfValue from the login response, then the student home page."""
+        auth_id = extract_authorized_id(submit_html)
+        csrf = extract_csrf(submit_html)
+        if csrf and not auth_id:
+            auth_id = regno
 
-        pages = [dashboard_html]
-        if not (extract_authorized_id(dashboard_html) and extract_csrf(dashboard_html)):
-            attendance = await self._client.request_operation("read.attendance_page")
-            if page_has_login_form(attendance.text):
-                self._mark_unauthenticated()
-                return LoginResult(
-                    status="captcha_failed",
-                    message="Session expired before the dashboard tokens could be read.",
-                )
-            pages.insert(0, attendance.text)
-
-        auth_id: str | None = None
-        csrf: str | None = None
-        for page in pages:
-            auth_id = auth_id or extract_authorized_id(page)
-            csrf = csrf or extract_csrf(page)
+        if not (auth_id and csrf):
+            for operation_id in ("read.content", "read.open_page", "read.attendance_page"):
+                follow = await self._client.request_operation(operation_id)
+                if page_has_login_form(follow.text):
+                    continue
+                auth_id = auth_id or extract_authorized_id(follow.text)
+                csrf = csrf or extract_csrf(follow.text)
+                if csrf and not auth_id:
+                    auth_id = regno
+                if auth_id and csrf:
+                    break
 
         if not auth_id or not csrf:
             self._mark_unauthenticated()
+            path = urlparse(str(response.url)).path or str(response.url)
+            details = describe_form_fields(submit_html)
             logger.warning(
-                "Post-login pages missing tokens (authorizedID=%s, csrf=%s)",
-                bool(auth_id),
-                bool(csrf),
+                "Post-login page missing tokens path=%s %s",
+                path,
+                details,
             )
             return LoginResult(
-                status="captcha_failed",
+                status="dashboard_unparsed",
                 message=(
-                    "Login response did not yield authorizedID and CSRF "
-                    "from the VTOP dashboard."
+                    "Login left the captcha page, but no CSRF token was found "
+                    f"(HTTP {response.status_code} {path}; {details}). "
+                    f"Username sent: {regno}. "
+                    "Use the registration number as VTOP_REGNO, and keep any "
+                    "$ in the password literal (do not let the shell expand it)."
                 ),
             )
 

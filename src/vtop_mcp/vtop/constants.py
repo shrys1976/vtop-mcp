@@ -19,6 +19,7 @@ PATH_LOGIN_LANDING = f"{VTOP_PREFIX}/login"
 PATH_PRELOGIN_SETUP = f"{VTOP_PREFIX}/prelogin/setup"
 PATH_INIT_PAGE = f"{VTOP_PREFIX}/init/page"
 PATH_OPEN_PAGE = f"{VTOP_PREFIX}/open/page"
+PATH_CONTENT = f"{VTOP_PREFIX}/content"
 PATH_SESSION_EXPIRED = f"{VTOP_PREFIX}/session/expired/out"
 
 # --- Auth (student login) ---

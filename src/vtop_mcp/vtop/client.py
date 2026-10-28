@@ -42,7 +42,7 @@ def _browser_headers(method: str, url: str) -> dict[str, str]:
     elif "/login" in path or path.endswith("/init/page"):
         referer = f"{origin}/vtop/login"
     else:
-        referer = f"{origin}/vtop/open/page"
+        referer = f"{origin}/vtop/content"
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",

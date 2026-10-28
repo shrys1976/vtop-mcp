@@ -33,6 +33,12 @@ def extract_csrf(html: str) -> str | None:
     )
     if match:
         return (match.group(1) or match.group(2) or "").strip() or None
+    script = re.search(
+        r"""var\s+csrfValue\s*=\s*["']([^"']+)["']""",
+        html,
+    )
+    if script:
+        return script.group(1).strip() or None
     return None
 
 
@@ -76,7 +82,11 @@ def extract_authorized_id(html: str) -> str | None:
     soup = BeautifulSoup(html, "html.parser")
     tag = soup.find("input", attrs={"name": "authorizedID"})
     if tag is None:
+        tag = soup.find("input", attrs={"name": "authorizedIDX"})
+    if tag is None:
         tag = soup.find(id="authorizedID")
+    if tag is None:
+        tag = soup.find(id="authorizedIDX")
     if tag and tag.get("value"):
         value = str(tag["value"]).strip()
         if value:
@@ -89,6 +99,19 @@ def extract_authorized_id(html: str) -> str | None:
     if match:
         return match.group(1).strip() or None
     return None
+
+
+def describe_form_fields(html: str) -> str:
+    """Input names only, for login diagnostics. Values are omitted."""
+    soup = BeautifulSoup(html, "html.parser")
+    names: list[str] = []
+    for tag in soup.find_all("input"):
+        label = tag.get("name") or tag.get("id")
+        if label:
+            names.append(str(label))
+    unique = list(dict.fromkeys(names))[:12]
+    csrf_var = "yes" if "csrfValue" in html else "no"
+    return f"inputs={unique or ['none']} csrfValue={csrf_var}"
 
 
 def extract_login_error(html: str) -> str | None:

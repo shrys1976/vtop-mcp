@@ -9,8 +9,7 @@ from vtop_mcp.vtop.client import VtopHttpClient
 
 
 async def fetch_profile(client: VtopHttpClient, ctx: AuthContext) -> Profile:
-    response = await client.request_operation(
-        "read.profile",
-        auth_post_params(ctx),
-    )
+    params = auth_post_params(ctx)
+    params["verifyMenu"] = "true"
+    response = await client.request_operation("read.profile", params)
     return parse_profile(response.text)

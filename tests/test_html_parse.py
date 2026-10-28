@@ -29,5 +29,10 @@ def test_login_form_ignores_dashboard_chrome() -> None:
     assert page_has_login_form(login) is True
 
 
+def test_csrf_value_script() -> None:
+    html = '<script>var csrfValue = "js-csrf-token";</script>'
+    assert extract_csrf(html) == "js-csrf-token"
+
+
 def test_otp_form_detection() -> None:
     assert page_has_otp_form('<form id="otpVerificationForm"></form>')

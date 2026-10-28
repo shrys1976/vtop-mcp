@@ -9,8 +9,7 @@ from vtop_mcp.vtop.client import VtopHttpClient
 
 
 async def fetch_semesters(client: VtopHttpClient, ctx: AuthContext) -> SemesterList:
-    response = await client.request_operation(
-        "read.semester_list_page",
-        auth_post_params(ctx),
-    )
+    params = auth_post_params(ctx)
+    params["verifyMenu"] = "true"
+    response = await client.request_operation("read.semester_list_page", params)
     return parse_semesters(response.text)

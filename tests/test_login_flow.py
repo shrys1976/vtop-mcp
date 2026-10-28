@@ -202,6 +202,9 @@ async def test_login_requires_dashboard_tokens(tmp_path, monkeypatch) -> None:
     respx.post(f"{BASE_URL}/vtop/login").mock(
         return_value=httpx.Response(200, text="<html><body>Welcome</body></html>")
     )
+    respx.get(f"{BASE_URL}/vtop/content").mock(
+        return_value=httpx.Response(200, text="<html><body>shell</body></html>")
+    )
     respx.get(f"{BASE_URL}/vtop/open/page").mock(
         return_value=httpx.Response(200, text=_dashboard_html())
     )
@@ -239,6 +242,9 @@ async def test_login_rejects_dashboard_without_tokens(tmp_path, monkeypatch) -> 
     respx.post(f"{BASE_URL}/vtop/login").mock(
         return_value=httpx.Response(200, text="<html><body>Welcome</body></html>")
     )
+    respx.get(f"{BASE_URL}/vtop/content").mock(
+        return_value=httpx.Response(200, text="<html><body>shell</body></html>")
+    )
     respx.get(f"{BASE_URL}/vtop/open/page").mock(
         return_value=httpx.Response(200, text="<html><body>shell</body></html>")
     )
@@ -253,6 +259,43 @@ async def test_login_rejects_dashboard_without_tokens(tmp_path, monkeypatch) -> 
     async with VtopHttpClient(settings) as client:
         flow = LoginFlow(client, settings)
         result = await flow.login()
-        assert result.status == "captcha_failed"
+        assert result.status == "dashboard_unparsed"
         assert client.session_data.authenticated is False
         assert client.session_data.authorized_id is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_login_uses_csrf_value_and_username(tmp_path, monkeypatch) -> None:
+    settings = Settings(
+        session_file=tmp_path / "s.enc",
+        session_key_env=Fernet.generate_key().decode(),
+        regno="21BCE0000",
+        password="secret",
+    )
+    respx.get(f"{BASE_URL}/vtop/login").mock(
+        return_value=httpx.Response(200, text=_landing_html())
+    )
+    respx.post(f"{BASE_URL}/vtop/prelogin/setup").mock(
+        return_value=httpx.Response(302, headers={"Location": "/vtop/init/page"})
+    )
+    respx.get(f"{BASE_URL}/vtop/init/page").mock(
+        return_value=httpx.Response(200, text=_init_html())
+    )
+    respx.post(f"{BASE_URL}/vtop/login").mock(
+        return_value=httpx.Response(
+            200,
+            text='<script>var csrfValue = "js-csrf";</script>',
+        )
+    )
+    monkeypatch.setattr(
+        "vtop_mcp.vtop.auth.login.solve_captcha_base64",
+        lambda _b64, manual=None: "ABCDEF",
+    )
+
+    async with VtopHttpClient(settings) as client:
+        flow = LoginFlow(client, settings)
+        result = await flow.login()
+        assert result.status == "authenticated"
+        assert client.session_data.authorized_id == "21BCE0000"
+        assert client.session_data.csrf == "js-csrf"
