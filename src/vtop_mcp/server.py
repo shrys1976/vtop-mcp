@@ -11,6 +11,7 @@ from mcp.server import MCPServer
 
 from vtop_mcp.app_state import VtopApp
 from vtop_mcp.exceptions import (
+    CaptchaSolveError,
     CredentialsMissingError,
     InvalidCredentialsError,
     RecaptchaOnlyError,
@@ -35,8 +36,9 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 INSTRUCTIONS = (
-    "Call vtop_session_status first. If not authenticated, call vtop_login. "
-    "For semester-scoped data in later tools, call list_semesters and pass "
+    "Call vtop_session_status first. If not authenticated, call vtop_login "
+    "(auto OCR) or vtop_get_login_captcha then vtop_login_with_captcha when "
+    "OCR fails. For semester-scoped data, call list_semesters and pass "
     "semester_id from the result."
 )
 
@@ -54,6 +56,8 @@ def _session_status() -> SessionStatus:
         regno=meta.regno,
         session_age_seconds=app.session_age_seconds(),
         otp_pending=app.login_flow.otp_pending,
+        captcha_pending=app.login_flow.captcha_pending,
+        authorized_id_present=bool(meta.authorized_id),
     )
 
 
@@ -63,18 +67,70 @@ async def vtop_session_status() -> dict[str, Any]:
     return ok_payload(_session_status())
 
 
+def _login_captcha_hint() -> dict[str, Any]:
+    challenge = app.login_flow.captcha_hint()
+    if not challenge:
+        return {}
+    return {
+        "captcha_image_base64": challenge.captcha_image_base64,
+        "captcha_image_data_url": challenge.captcha_image_data_url,
+        "hint": "Call vtop_get_login_captcha or vtop_login_with_captcha.",
+    }
+
+
+@mcp.tool(name="vtop_get_login_captcha")
+async def vtop_get_login_captcha() -> dict[str, Any]:
+    """Fetch the current VTOP text captcha image for manual entry."""
+    try:
+        challenge = await app.login_flow.fetch_login_captcha()
+    except CredentialsMissingError as exc:
+        return err_payload("credentials_missing", str(exc))
+    except RecaptchaOnlyError as exc:
+        return err_payload("recaptcha_only", str(exc))
+    except CaptchaSolveError as exc:
+        return err_payload("captcha_failed", str(exc))
+
+    return ok_payload(
+        {
+            "regno": challenge.regno,
+            "captcha_image_base64": challenge.captcha_image_base64,
+            "captcha_image_data_url": challenge.captcha_image_data_url,
+            "message": "Read the captcha and call vtop_login_with_captcha.",
+        }
+    )
+
+
+@mcp.tool(name="vtop_login_with_captcha")
+async def vtop_login_with_captcha(captcha: str) -> dict[str, Any]:
+    """Complete login with captcha text you read from vtop_get_login_captcha."""
+    try:
+        result = await app.login_flow.login_with_captcha(captcha)
+    except InvalidCredentialsError as exc:
+        return err_payload("invalid_credentials", str(exc))
+
+    return _login_result_payload(result)
+
+
 @mcp.tool(name="vtop_login")
-async def vtop_login() -> dict[str, Any]:
+async def vtop_login(captcha: str | None = None) -> dict[str, Any]:
     """Log in using VTOP_REGNO/VTOP_PASSWORD or keyring credentials."""
     try:
-        result = await app.login_flow.login()
+        result = await app.login_flow.login(captcha=captcha)
     except CredentialsMissingError as exc:
         return err_payload("credentials_missing", str(exc))
     except RecaptchaOnlyError as exc:
         return err_payload("recaptcha_only", str(exc))
     except InvalidCredentialsError as exc:
         return err_payload("invalid_credentials", str(exc))
+    except CaptchaSolveError as exc:
+        payload = err_payload("captcha_failed", str(exc))
+        payload.update(_login_captcha_hint())
+        return payload
 
+    return _login_result_payload(result)
+
+
+def _login_result_payload(result: Any) -> dict[str, Any]:
     if result.status == "authenticated":
         app.set_profile_cache(None)
         return ok_payload(
@@ -93,10 +149,10 @@ async def vtop_login() -> dict[str, Any]:
                 "error_code": "otp_required",
             }
         )
-    return err_payload(
-        result.status,
-        result.message or "Login failed.",
-    )
+    payload = err_payload(result.status, result.message or "Login failed.")
+    if result.status == "captcha_failed":
+        payload.update(_login_captcha_hint())
+    return payload
 
 
 @mcp.tool(name="vtop_verify_otp")

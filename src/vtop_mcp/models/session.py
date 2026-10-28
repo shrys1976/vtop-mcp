@@ -13,3 +13,5 @@ class SessionStatus(BaseModel):
         description="Seconds since encrypted session was last saved.",
     )
     otp_pending: bool = False
+    captcha_pending: bool = False
+    authorized_id_present: bool = False

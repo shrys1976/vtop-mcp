@@ -45,13 +45,21 @@ Store JSON in keyring service `vtop-mcp`, username `credentials`:
 
 Session encryption uses keyring entry `vtop-mcp` / `session-key` (created on first run).
 
-### Optional OCR fallback
+### Captcha (auto OCR + manual fallback)
 
-If bitmap captcha solving fails:
+VTOP text captchas are noisy; auto-solve is best-effort. Install the OCR extra:
 
 ```bash
 uv sync --extra ocr
 ```
+
+If `vtop_login` keeps failing with `captcha_failed`, use manual entry:
+
+1. Call **`vtop_get_login_captcha`** — returns `captcha_image_base64` / `captcha_image_data_url`.
+2. Read the six characters from the image.
+3. Call **`vtop_login_with_captcha`** with that text.
+
+Wrong captcha responses include a fresh image in the error payload when the session is still on the login page.
 
 ## Run the MCP server
 

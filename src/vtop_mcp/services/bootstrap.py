@@ -37,10 +37,16 @@ async def resolve_auth_context(client: VtopHttpClient) -> AuthContext:
         csrf = extract_csrf(html)
         if auth_id and csrf:
             meta.authorized_id = auth_id
+            meta.authenticated = True
             client.persist_session()
             return AuthContext(authorized_id=auth_id, csrf=csrf)
 
-    raise NotAuthenticatedError("Could not resolve authorizedID/CSRF from VTOP.")
+    meta.authenticated = False
+    client.persist_session()
+    raise NotAuthenticatedError(
+        "Could not resolve authorizedID and CSRF from the VTOP dashboard. "
+        "Call vtop_login again."
+    )
 
 
 def auth_post_params(ctx: AuthContext) -> dict[str, str]:

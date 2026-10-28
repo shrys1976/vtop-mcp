@@ -17,7 +17,22 @@ def extract_csrf(html: str) -> str | None:
     soup = BeautifulSoup(html, "html.parser")
     tag = soup.find("input", attrs={"name": FIELD_CSRF})
     if tag and tag.get("value"):
-        return str(tag["value"])
+        value = str(tag["value"]).strip()
+        if value:
+            return value
+    meta = soup.find("meta", attrs={"name": FIELD_CSRF})
+    if meta and meta.get("content"):
+        value = str(meta["content"]).strip()
+        if value:
+            return value
+    match = re.search(
+        r"""(?:name|id)=["']_csrf["'][^>]*?(?:value|content)=["']([^"']+)["']"""
+        r"""|(?:value|content)=["']([^"']+)["'][^>]*?(?:name|id)=["']_csrf["']""",
+        html,
+        re.I,
+    )
+    if match:
+        return (match.group(1) or match.group(2) or "").strip() or None
     return None
 
 
@@ -44,7 +59,12 @@ def extract_captcha_jpeg_base64(html: str) -> str | None:
 
 
 def page_has_login_form(html: str) -> bool:
-    return "vtopLoginForm" in html or 'id="username"' in html
+    return (
+        "vtopLoginForm" in html
+        or 'name="captchaStr"' in html
+        or 'id="username"' in html
+        or "prelogin/setup" in html
+    )
 
 
 def page_has_otp_form(html: str) -> bool:
@@ -54,8 +74,19 @@ def page_has_otp_form(html: str) -> bool:
 def extract_authorized_id(html: str) -> str | None:
     soup = BeautifulSoup(html, "html.parser")
     tag = soup.find("input", attrs={"name": "authorizedID"})
+    if tag is None:
+        tag = soup.find(id="authorizedID")
     if tag and tag.get("value"):
-        return str(tag["value"])
+        value = str(tag["value"]).strip()
+        if value:
+            return value
+    match = re.search(
+        r"""authorizedID["']?\s*[:=]\s*["']([^"']+)["']""",
+        html,
+        re.I,
+    )
+    if match:
+        return match.group(1).strip() or None
     return None
 
 

@@ -6,6 +6,7 @@ import base64
 import io
 import json
 import logging
+from collections import Counter
 from functools import lru_cache
 from importlib import resources
 from typing import Any
@@ -13,12 +14,15 @@ from typing import Any
 from PIL import Image
 
 from vtop_mcp.exceptions import CaptchaSolveError
+from vtop_mcp.vtop.auth.captcha_preprocess import preprocess_variants
 
 logger = logging.getLogger(__name__)
 
 CHAR_WIDTH = 30
 CHAR_HEIGHT = 30
 CAPTCHA_LENGTH = 6
+
+_ddddocr_engine: Any | None = None
 
 
 @lru_cache(maxsize=1)
@@ -54,7 +58,14 @@ def _segment_bitmap(image: Image.Image) -> list[list[list[int]]]:
             row: list[int] = []
             for x in range(CHAR_WIDTH):
                 red, green, blue = resized.getpixel((x, y))
-                row.append(1 if red > 160 and green < 120 and blue < 120 else 0)
+                if red > 200 and green > 200 and blue > 200:
+                    row.append(0)
+                elif red > 160 and green < 120 and blue < 120:
+                    row.append(1)
+                elif red < 80 and green < 80 and blue < 80:
+                    row.append(1)
+                else:
+                    row.append(1 if red > green + 30 and red > blue + 30 else 0)
             grid.append(row)
         segments.append(grid)
     return segments
@@ -97,27 +108,75 @@ def solve_captcha_image(image: Image.Image) -> str:
     return text
 
 
-def solve_captcha_base64(b64_jpeg: str) -> str:
-    image = decode_captcha_image(b64_jpeg)
-    try:
-        return solve_captcha_image(image)
-    except CaptchaSolveError:
-        return _ddddocr_fallback(image)
-
-
-def _ddddocr_fallback(image: Image.Image) -> str:
+def _get_ddddocr() -> Any:
+    global _ddddocr_engine
+    if _ddddocr_engine is not None:
+        return _ddddocr_engine
     try:
         import ddddocr
     except ImportError as exc:
         raise CaptchaSolveError(
-            "Bitmap solve failed and optional ddddocr is not installed"
+            "Install optional OCR: uv sync --extra ocr (ddddocr)"
         ) from exc
+    _ddddocr_engine = ddddocr.DdddOcr(show_ad=False)
+    return _ddddocr_engine
 
+
+def _ddddocr_on_image(image: Image.Image) -> str:
+    ocr = _get_ddddocr()
     buf = io.BytesIO()
     image.save(buf, format="JPEG")
-    ocr = ddddocr.DdddOcr(show_ad=False)
     text = ocr.classification(buf.getvalue())
     cleaned = "".join(ch for ch in text.upper() if ch.isalnum())
     if len(cleaned) != CAPTCHA_LENGTH:
         raise CaptchaSolveError("ddddocr captcha length mismatch")
     return cleaned
+
+
+def _collect_candidates(image: Image.Image) -> list[str]:
+    candidates: list[str] = []
+    for variant in preprocess_variants(image):
+        try:
+            candidates.append(_ddddocr_on_image(variant))
+        except CaptchaSolveError:
+            pass
+        try:
+            candidates.append(solve_captcha_image(variant))
+        except CaptchaSolveError:
+            pass
+    return candidates
+
+
+def _pick_best_candidate(candidates: list[str]) -> str:
+    if not candidates:
+        raise CaptchaSolveError("All captcha solvers failed")
+
+    counts = Counter(candidates)
+    text, votes = counts.most_common(1)[0]
+    if votes >= 2:
+        logger.debug("Captcha consensus %r (%s votes)", text, votes)
+        return text
+
+    if len(counts) == 1:
+        return text
+
+    logger.info(
+        "Captcha solvers disagree (%s); using plurality %r",
+        dict(counts),
+        text,
+    )
+    return text
+
+
+def solve_captcha_base64(b64_jpeg: str, *, manual: str | None = None) -> str:
+    if manual is not None:
+        cleaned = "".join(ch for ch in manual.strip().upper() if ch.isalnum())
+        if len(cleaned) != CAPTCHA_LENGTH:
+            raise CaptchaSolveError(
+                f"Manual captcha must be {CAPTCHA_LENGTH} alphanumeric characters"
+            )
+        return cleaned
+
+    image = decode_captcha_image(b64_jpeg)
+    candidates = _collect_candidates(image)
+    return _pick_best_candidate(candidates)
