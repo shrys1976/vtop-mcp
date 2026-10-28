@@ -8,9 +8,11 @@ from email.utils import format_datetime
 import httpx
 
 from vtop_mcp.exceptions import VtopMcpError
+from vtop_mcp.parsers.calendar import normalize_cal_date
 from vtop_mcp.services.bootstrap import AuthContext, auth_post_params
 from vtop_mcp.vtop.constants import (
     CALENDAR_PARAM_RETURN_GET_DATES,
+    CALENDAR_PARAM_RETURN_LIST_SEMESTER,
     DEFAULT_CLASS_GROUP_GENERAL,
     FIELD_CAL_DATE,
     FIELD_CLASS_GROUP_ID,
@@ -35,8 +37,12 @@ def gmt_x_header() -> str:
     return format_datetime(datetime.now(UTC), usegmt=True)
 
 
-def menu_post_params(ctx: AuthContext) -> dict[str, str]:
-    params = auth_post_params(ctx)
+def menu_post_params(
+    ctx: AuthContext,
+    *,
+    client: VtopHttpClient | None = None,
+) -> dict[str, str]:
+    params = auth_post_params(ctx, client=client)
     params[FIELD_VERIFY_MENU] = "true"
     params[FIELD_NOCACHE] = NOCACHE_LITERAL
     return params
@@ -49,10 +55,30 @@ def semester_data_params(ctx: AuthContext, semester_id: str) -> dict[str, str]:
     return params
 
 
-def calendar_semester_params(ctx: AuthContext, sem_sub_id: str) -> dict[str, str]:
-    params = auth_post_params(ctx)
+def calendar_semester_params(
+    ctx: AuthContext,
+    sem_sub_id: str,
+    *,
+    client: VtopHttpClient | None = None,
+) -> dict[str, str]:
+    params = auth_post_params(ctx, client=client)
     params[FIELD_SEM_SUB_ID] = sem_sub_id
     params[FIELD_PARAM_RETURN_ID] = CALENDAR_PARAM_RETURN_GET_DATES
+    params[FIELD_X] = gmt_x_header()
+    return params
+
+
+def calendar_class_group_params(
+    ctx: AuthContext,
+    sem_sub_id: str,
+    *,
+    class_group_id: str = DEFAULT_CLASS_GROUP_GENERAL,
+    client: VtopHttpClient | None = None,
+) -> dict[str, str]:
+    params = auth_post_params(ctx, client=client)
+    params[FIELD_SEM_SUB_ID] = sem_sub_id
+    params[FIELD_CLASS_GROUP_ID] = class_group_id
+    params[FIELD_PARAM_RETURN_ID] = CALENDAR_PARAM_RETURN_LIST_SEMESTER
     params[FIELD_X] = gmt_x_header()
     return params
 
@@ -63,9 +89,10 @@ def calendar_month_params(
     cal_date: str,
     sem_sub_id: str,
     class_group_id: str = DEFAULT_CLASS_GROUP_GENERAL,
+    client: VtopHttpClient | None = None,
 ) -> dict[str, str]:
-    params = auth_post_params(ctx)
-    params[FIELD_CAL_DATE] = cal_date
+    params = auth_post_params(ctx, client=client)
+    params[FIELD_CAL_DATE] = normalize_cal_date(cal_date)
     params[FIELD_SEM_SUB_ID] = sem_sub_id
     params[FIELD_CLASS_GROUP_ID] = class_group_id
     params[FIELD_X] = gmt_x_header()

@@ -51,5 +51,15 @@ async def resolve_auth_context(client: VtopHttpClient) -> AuthContext:
     )
 
 
-def auth_post_params(ctx: AuthContext) -> dict[str, str]:
-    return {FIELD_AUTHORIZED_ID: ctx.authorized_id, FIELD_CSRF: ctx.csrf}
+def auth_post_params(
+    ctx: AuthContext,
+    *,
+    client: VtopHttpClient | None = None,
+) -> dict[str, str]:
+    authorized_id = ctx.authorized_id
+    csrf = ctx.csrf
+    if client is not None:
+        meta = client.session_data
+        authorized_id = meta.authorized_id or authorized_id
+        csrf = meta.csrf or csrf
+    return {FIELD_AUTHORIZED_ID: authorized_id, FIELD_CSRF: csrf}

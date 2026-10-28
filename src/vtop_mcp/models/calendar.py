@@ -16,4 +16,5 @@ class CalendarEvent(BaseModel):
 class AcademicCalendar(BaseModel):
     semester_id: str | None = None
     class_group_id: str | None = None
+    class_group_label: str | None = None
     events: list[CalendarEvent]

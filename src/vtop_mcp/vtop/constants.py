@@ -68,6 +68,7 @@ PATH_CURRICULUM = f"{VTOP_PREFIX}/academics/common/Curriculum"
 
 PATH_CALENDAR_PREVIEW = f"{VTOP_PREFIX}/academics/common/CalendarPreview"
 PATH_CALENDAR_SEMESTER_DATES = f"{VTOP_PREFIX}/getDateForSemesterPreview"
+PATH_CALENDAR_LIST_SEMESTER = f"{VTOP_PREFIX}/getListForSemester"
 PATH_PROCESS_CALENDAR = f"{VTOP_PREFIX}/processViewCalendar"
 
 PATH_HOD_DEAN = f"{VTOP_PREFIX}/hrms/viewHodDeanDetails"
@@ -100,8 +101,11 @@ FIELD_PARAM_RETURN_ID = "paramReturnId"
 
 NOCACHE_LITERAL = "@(new Date().getTime())"
 DEFAULT_CLASS_GROUP_COMBINED = "COMB"
+# VTOP option value for the label "General (Semester)" (not COMB combined view).
 DEFAULT_CLASS_GROUP_GENERAL = "ALL"
+CLASS_GROUP_GENERAL_LABEL = "General (Semester)"
 CALENDAR_PARAM_RETURN_GET_DATES = "getDateForSemesterPreview"
+CALENDAR_PARAM_RETURN_LIST_SEMESTER = "getListForSemester"
 
 # --- Cookies ---
 

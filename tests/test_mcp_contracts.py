@@ -178,13 +178,18 @@ async def test_contract_get_academic_calendar(app) -> None:
     respx.post(f"{BASE_URL}/vtop/getDateForSemesterPreview").mock(
         return_value=httpx.Response(200, text=semester_dates)
     )
+    list_semester = (FIXTURES / "calendar_list_semester.html").read_text()
+    respx.post(f"{BASE_URL}/vtop/getListForSemester").mock(
+        return_value=httpx.Response(200, text=list_semester)
+    )
     respx.post(f"{BASE_URL}/vtop/processViewCalendar").mock(
         return_value=httpx.Response(200, text=month)
     )
-    payload = await get_academic_calendar(semester_id="VL20262701")
+    payload = await get_academic_calendar()
     assert payload["ok"] is True
+    assert payload.get("semester_id") == "VL20262701"
     assert len(payload["events"]) >= 1
-    assert payload.get("class_group_id") == "ALL"
+    assert payload.get("class_group_label") == "General (Semester)"
 
 
 @pytest.mark.asyncio

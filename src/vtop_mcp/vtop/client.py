@@ -50,6 +50,8 @@ def _browser_headers(method: str, url: str) -> dict[str, str]:
     }
     if method == "POST":
         headers["Origin"] = origin
+        headers["X-Requested-With"] = "XMLHttpRequest"
+        headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
     return headers
 
 

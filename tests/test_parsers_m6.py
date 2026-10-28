@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from vtop_mcp.parsers.attendance import parse_attendance
-from vtop_mcp.parsers.calendar import parse_calendar_month
+from vtop_mcp.parsers.calendar import (
+    parse_calendar_month,
+    parse_default_calendar_semester,
+)
 from vtop_mcp.parsers.courses import parse_courses
 from vtop_mcp.parsers.exams import parse_exam_schedule
 from vtop_mcp.parsers.faculty import parse_faculty_detail, parse_faculty_search_results
@@ -73,17 +76,46 @@ def test_parse_spotlight_fixture() -> None:
     assert data.items[1].url is not None
 
 
-def test_parse_calendar_fixture() -> None:
-    html = (FIXTURES / "calendar.html").read_text()
-    data = parse_calendar_month(html, "01-OCT-2026")
-    assert len(data) == 2
-    holiday = next(e for e in data if e.date == "02-OCT-2026")
-    assert holiday.title == "Gandhi Jayanthi"
-    assert holiday.category == "Holiday"
-    assert holiday.class_group == "General (Semester)"
+def test_parse_default_calendar_semester() -> None:
+    html = (FIXTURES / "calendar_preview.html").read_text()
+    assert parse_default_calendar_semester(html) == "VL20262701"
+
+
+def test_parse_calendar_november_all_group() -> None:
+    html = (FIXTURES / "calendar_november_all.html").read_text()
+    data = parse_calendar_month(
+        html,
+        "01-NOV-2026",
+        class_group_label="General (Semester)",
+    )
+    assert len(data) == 3
+    holiday = next(e for e in data if e.date == "04-NOV-2026")
+    assert holiday.title == "Holiday (Deepavali)"
+    assert holiday.category == "Holiday (Deepavali)"
+
+
+def test_parse_calendar_october_all_group() -> None:
+    from vtop_mcp.parsers.calendar import calendar_month_header
+
+    html = (FIXTURES / "calendar_october_all.html").read_text()
+    assert calendar_month_header(html) == "OCTOBER 2026"
+    data = parse_calendar_month(
+        html,
+        "01-OCT-2026",
+        class_group_label="General (Semester)",
+    )
+    assert len(data) == 3
+    assert not any(e.date == "10-OCT-2026" for e in data)
     exam = next(e for e in data if e.date == "01-OCT-2026")
     assert exam.category == "CAT - II"
     assert exam.remark == "Exam Day"
+    assert exam.class_group == "General (Semester)"
+    holiday = next(e for e in data if e.date == "02-OCT-2026")
+    assert holiday.category == "Holiday"
+    assert holiday.title == "Gandhi Jayanthi"
+    pooja = next(e for e in data if e.date == "19-OCT-2026")
+    assert pooja.category == "Holiday"
+    assert pooja.title == "Ayutha Pooja"
 
 
 def test_parse_profile_fixture() -> None:

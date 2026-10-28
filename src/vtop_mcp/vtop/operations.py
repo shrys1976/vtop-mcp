@@ -26,6 +26,7 @@ from vtop_mcp.vtop.constants import (
     FIELD_VERIFY_MENU,
     FIELD_X,
     PATH_CALENDAR_PREVIEW,
+    PATH_CALENDAR_LIST_SEMESTER,
     PATH_CALENDAR_SEMESTER_DATES,
     PATH_CAPTCHA_NEW,
     PATH_COURSE_PAGE_CONSOLIDATED,
@@ -356,6 +357,22 @@ OPERATIONS: dict[str, OperationSpec] = {
                     FIELD_AUTHORIZED_ID,
                     FIELD_CSRF,
                     FIELD_SEM_SUB_ID,
+                    FIELD_PARAM_RETURN_ID,
+                    FIELD_X,
+                }
+            ),
+        ),
+        _op(
+            "read.calendar_list_semester",
+            "POST",
+            PATH_CALENDAR_LIST_SEMESTER,
+            "read",
+            body_keys=frozenset(
+                {
+                    FIELD_AUTHORIZED_ID,
+                    FIELD_CSRF,
+                    FIELD_SEM_SUB_ID,
+                    FIELD_CLASS_GROUP_ID,
                     FIELD_PARAM_RETURN_ID,
                     FIELD_X,
                 }
