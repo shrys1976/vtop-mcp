@@ -68,10 +68,23 @@ async def test_list_semesters_happy_path(vtop_app) -> None:
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_get_spotlight_no_auth_required(vtop_app) -> None:
-    fixture = open("tests/fixtures/responses/spotlight.html").read()
-    respx.get(f"{BASE_URL}/vtop/login").mock(
+async def test_get_spotlight_requires_auth(vtop_app) -> None:
+    payload = await get_spotlight()
+    assert payload["ok"] is False
+    assert payload["error_code"] == "not_authenticated"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_spotlight_authenticated(vtop_app) -> None:
+    vtop_app.client.session_data.authenticated = True
+    fixture = open("tests/fixtures/responses/semesters.html").read()
+    respx.get(f"{BASE_URL}/vtop/open/page").mock(
         return_value=httpx.Response(200, text=fixture)
+    )
+    spotlight = open("tests/fixtures/responses/spotlight.html").read()
+    respx.post(f"{BASE_URL}/vtop/home").mock(
+        return_value=httpx.Response(200, text=spotlight)
     )
     payload = await get_spotlight()
     assert payload["ok"] is True

@@ -8,10 +8,16 @@ from pydantic import BaseModel
 class ExamEntry(BaseModel):
     course_code: str | None = None
     course_title: str | None = None
+    course_type: str | None = None
+    class_id: str | None = None
+    slot: str | None = None
     exam_name: str | None = None
     date: str | None = None
     session: str | None = None
+    reporting_time: str | None = None
+    exam_time: str | None = None
     venue: str | None = None
+    seat_location: str | None = None
     seat_no: str | None = None
 
 

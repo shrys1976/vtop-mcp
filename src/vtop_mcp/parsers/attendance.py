@@ -2,50 +2,67 @@
 
 from __future__ import annotations
 
-import re
-
 from vtop_mcp.models.attendance import AttendanceCourse, AttendanceList
-from vtop_mcp.parsers.tables import find_tables, iter_data_rows
+from vtop_mcp.parsers._common import (
+    cell_text,
+    parse_int,
+    parse_percent,
+    split_class_detail,
+    split_course_detail,
+)
+from bs4 import BeautifulSoup
 
 
-def _parse_fraction(text: str) -> tuple[int | None, int | None]:
-    match = re.search(r"(\d+)\s*/\s*(\d+)", text)
-    if not match:
-        return None, None
-    return int(match.group(1)), int(match.group(2))
+def _faculty_and_school(text: str) -> tuple[str | None, str | None]:
+    text = text.strip()
+    if " - " not in text:
+        return text or None, None
+    name, school = text.split(" - ", 1)
+    return name.strip() or None, school.strip() or None
 
 
-def _parse_percent(text: str) -> float | None:
-    match = re.search(r"(\d+(?:\.\d+)?)\s*%", text)
-    return float(match.group(1)) if match else None
+def _parse_row(cells: list[str]) -> AttendanceCourse | None:
+    if len(cells) < 8:
+        return None
+    code, title, course_type = split_course_detail(cells[2] if len(cells) > 2 else "")
+    if not title:
+        return None
+    class_id, slot, venue = split_class_detail(cells[3] if len(cells) > 3 else "")
+    faculty, school = _faculty_and_school(cells[4] if len(cells) > 4 else "")
+    attended = parse_int(cells[5] if len(cells) > 5 else "")
+    total = parse_int(cells[6] if len(cells) > 6 else "")
+    percentage = parse_percent(cells[7] if len(cells) > 7 else "")
+    debar = cells[8].strip() if len(cells) > 8 else None
+    if debar == "-":
+        debar = None
+    return AttendanceCourse(
+        code=code,
+        title=title,
+        course_type=course_type,
+        class_group=cells[1] if len(cells) > 1 else None,
+        class_id=class_id,
+        slot=slot,
+        venue=venue,
+        faculty=faculty,
+        school=school,
+        attended=attended,
+        total=total,
+        percentage=percentage,
+        debar_status=debar,
+    )
 
 
 def parse_attendance(html: str, semester_id: str) -> AttendanceList:
+    soup = BeautifulSoup(html, "html.parser")
     courses: list[AttendanceCourse] = []
-    for table in find_tables(html):
-        rows = iter_data_rows(table)
-        if len(rows) < 2:
+    for tr in soup.find_all("tr"):
+        tds = tr.find_all("td")
+        if len(tds) < 8:
             continue
-        header = " ".join(rows[0]).lower()
-        if "attendance" not in header and "course" not in header:
+        cells = [cell_text(td) for td in tds]
+        if cells[0].lower().startswith("sl"):
             continue
-        for row in rows[1:]:
-            if len(row) < 2:
-                continue
-            title = row[1] if len(row) > 1 else row[0]
-            code = row[0] if len(row) > 2 else None
-            slot = row[2] if len(row) > 3 else None
-            joined = " ".join(row)
-            attended, total = _parse_fraction(joined)
-            percentage = _parse_percent(joined)
-            courses.append(
-                AttendanceCourse(
-                    code=code,
-                    title=title,
-                    slot=slot,
-                    attended=attended,
-                    total=total,
-                    percentage=percentage,
-                )
-            )
+        item = _parse_row(cells)
+        if item:
+            courses.append(item)
     return AttendanceList(semester_id=semester_id, courses=courses)

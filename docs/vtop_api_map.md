@@ -159,31 +159,32 @@ candidates for the M3 allowlist after login verification.
 
 | Feature | Method | Path | Typical POST fields |
 |---------|--------|------|---------------------|
-| Profile | POST | `/vtop/studentsRecord/StudentProfileAllView` | `authorizedID`, `_csrf` |
-| Semester list | GET/POST | `/vtop/academics/common/StudentAttendance` | `authorizedID`, `_csrf` (page load) |
-| Attendance | POST | `/vtop/processViewStudentAttendance` | `authorizedID`, `_csrf`, `semesterSubId` |
-| Attendance detail | POST | `/vtop/processViewAttendanceDetail` | semester + course/slot ids (TBD) |
-| Timetable | POST | `/vtop/processViewTimeTable` | `authorizedID`, `_csrf`, `semesterSubId` |
-| Marks | POST | `/vtop/examinations/doStudentMarkView` | `authorizedID`, `_csrf`, `semesterSubId` |
-| Exam schedule | POST | `/vtop/examinations/doSearchExamScheduleForStudent` | `authorizedID`, `_csrf`, `semesterSubId` |
-| Grade history | POST | `/vtop/examinations/examGradeView/StudentGradeHistory` | `authorizedID`, `_csrf` |
-| Courses (page) | GET/POST | `/vtop/academics/common/StudentCoursePage` | `authorizedID`, `_csrf` |
-| Course semesters | POST | `/vtop/getCourseForCoursePage` | `authorizedID`, `_csrf` |
-| Course detail | POST | `/vtop/processViewStudentCourseDetail` | course/slot ids (TBD) |
-| Academic calendar | GET/POST | `/vtop/academics/common/CalendarPage` | TBD in M6 |
-| Curriculum | GET/POST | `/vtop/academics/common/Curriculum` | optional |
+| Profile | POST | `/vtop/studentsRecord/StudentProfileAllView` | `verifyMenu`, `authorizedID`, `_csrf`, `nocache` |
+| Semester list | POST | `/vtop/academics/common/StudentAttendance` | `verifyMenu`, `authorizedID`, `_csrf`, `nocache` |
+| Attendance | POST | `/vtop/processViewStudentAttendance` | `authorizedID`, `_csrf`, `semesterSubId`, `x` |
+| Timetable shell | POST | `/vtop/academics/common/StudentTimeTable` | menu fields |
+| Timetable data | POST | `/vtop/processViewTimeTable` | `semesterSubId`, `x` |
+| Marks shell | POST | `/vtop/examinations/StudentMarkView` | menu fields |
+| Marks data | POST | `/vtop/examinations/doStudentMarkView` | `semesterSubId` |
+| Exam shell | POST | `/vtop/examinations/StudExamSchedule` | menu fields |
+| Exam data | POST | `/vtop/examinations/doSearchExamScheduleForStudent` | `semesterSubId` |
+| Grades shell | POST | `/vtop/examinations/examGradeView/StudentGradeView` | menu fields |
+| Grades data | POST | `/vtop/examinations/examGradeView/doStudentGradeView` | `semesterSubId` |
+| Courses (MCP) | POST | `/vtop/processViewTimeTable` | course list table in response |
+| Calendar | POST | `/vtop/processViewCalendar` | `calDate`, `semSubId`, `classGroupId`, `x` |
+| Spotlight | POST | `/vtop/home` | menu fields |
+| HOD / Dean | POST | `/vtop/hrms/viewHodDeanDetails` | menu fields |
+| Faculty search | POST | `/vtop/hrms/EmployeeSearchForStudent` | `empId`, `x` |
+| Proctor | POST | `/vtop/proctor/viewProctorDetails` | menu fields |
 
 Responses are predominantly **HTML tables**; some endpoints return partial HTML
 for AJAX. Parsers should not assume JSON.
 
-## Pre-login spotlight
+## Spotlight
 
-On `GET /vtop/login`, spotlight links call:
-
-- `downloadSpotLightViewFile/{numeric_id}` (relative under `/vtop/`)
-
-Titles are rendered server-side in HTML (no auth required for listed items on
-landing page). Post-login spotlight may reuse the same download pattern.
+Post-login dashboard (`POST /vtop/home`) lists SPOT-LIGHT items. Downloads use
+`vtopDownload('downloadSpotLightViewFile/{id}')`; external links use normal
+`href` URLs.
 
 ## Legacy ASP (deprecated for v1 client)
 

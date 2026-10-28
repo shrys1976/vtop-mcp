@@ -1,11 +1,4 @@
-"""Strict allowlist of VTOP HTTP operations (auth + read only).
-
-Permanent v1 exclusions (never register):
-- Course registration / add-drop (`registration`, `processRegistration`)
-- Payments (`payment`)
-- Profile / password mutations (`resetPassword`, `allowChangePassword`, forgot-userid)
-- Hostel outing save (`saveOuting`)
-"""
+"""Strict allowlist of VTOP HTTP operations (auth + read only)."""
 
 from __future__ import annotations
 
@@ -17,20 +10,37 @@ from vtop_mcp.exceptions import OperationNotAllowedError
 from vtop_mcp.vtop.constants import (
     EXCLUDED_PATH_PATTERNS,
     FIELD_AUTHORIZED_ID,
+    FIELD_CAL_DATE,
     FIELD_CAPTCHA,
+    FIELD_CLASS_GROUP_ID,
     FIELD_CSRF,
+    FIELD_EMP_ID,
     FIELD_GOOGLE_RECAPTCHA,
+    FIELD_NOCACHE,
     FIELD_PASSWORD,
     FIELD_PRELOGIN_FLAG,
     FIELD_SEMESTER_SUB_ID,
+    FIELD_SEM_SUB_ID,
     FIELD_USERNAME,
-    PATH_ACADEMIC_CALENDAR,
+    FIELD_VERIFY_MENU,
+    FIELD_X,
+    PATH_CALENDAR_PREVIEW,
+    PATH_CALENDAR_SEMESTER_DATES,
     PATH_CAPTCHA_NEW,
+    PATH_COURSE_PAGE_CONSOLIDATED,
     PATH_COURSE_PAGE_SEMESTERS,
     PATH_COURSE_PAGE_SLOTS,
     PATH_EXAM_SCHEDULE,
+    PATH_EXAM_SCHEDULE_PAGE,
+    PATH_FACULTY_DETAIL,
+    PATH_FACULTY_SEARCH,
+    PATH_FACULTY_SEARCH_PAGE,
     PATH_GENERATE_OTP,
     PATH_GRADE_HISTORY,
+    PATH_GRADE_VIEW_DATA,
+    PATH_GRADE_VIEW_PAGE,
+    PATH_HOD_DEAN,
+    PATH_HOME,
     PATH_INIT_PAGE,
     PATH_LOGIN_LANDING,
     PATH_LOGIN_SUBMIT,
@@ -39,15 +49,19 @@ from vtop_mcp.vtop.constants import (
     PATH_PRELOGIN_SETUP,
     PATH_PROCESS_ATTENDANCE,
     PATH_PROCESS_ATTENDANCE_DETAIL,
+    PATH_PROCESS_CALENDAR,
     PATH_PROCESS_COURSE_DETAIL,
     PATH_PROCESS_TIMETABLE,
+    PATH_PROCTOR,
     PATH_RESEND_OTP,
     PATH_SEMESTER_ATTENDANCE_PAGE,
     PATH_SESSION_EXPIRED,
     PATH_SPOTLIGHT_DOWNLOAD_TEMPLATE,
     PATH_STUDENT_COURSE_PAGE,
     PATH_STUDENT_MARKS,
+    PATH_STUDENT_MARKS_PAGE,
     PATH_STUDENT_PROFILE,
+    PATH_STUDENT_TIMETABLE_PAGE,
     PATH_VALIDATE_OTP,
 )
 
@@ -104,10 +118,25 @@ def _op(
     )
 
 
+_MENU_BODY = frozenset(
+    {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_VERIFY_MENU, FIELD_NOCACHE}
+)
+_AUTH_SEM = frozenset({FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_SEMESTER_SUB_ID})
+_AUTH_SEM_X = _AUTH_SEM | frozenset({FIELD_X})
+_CALENDAR_BODY = frozenset(
+    {
+        FIELD_AUTHORIZED_ID,
+        FIELD_CSRF,
+        FIELD_CAL_DATE,
+        FIELD_SEM_SUB_ID,
+        FIELD_CLASS_GROUP_ID,
+        FIELD_X,
+    }
+)
+
 OPERATIONS: dict[str, OperationSpec] = {
     spec.operation_id: spec
     for spec in (
-        # --- Auth (narrow) ---
         _op("auth.login_landing", "GET", PATH_LOGIN_LANDING, "auth"),
         _op(
             "auth.prelogin_setup",
@@ -161,32 +190,30 @@ OPERATIONS: dict[str, OperationSpec] = {
             "auth",
             body_keys=frozenset({FIELD_CSRF}),
         ),
-        # --- Read ---
         _op("read.open_page", "GET", PATH_OPEN_PAGE, "read"),
         _op("read.content", "GET", PATH_CONTENT, "read"),
+        _op("read.home", "POST", PATH_HOME, "read", body_keys=_MENU_BODY),
         _op("read.attendance_page", "GET", PATH_SEMESTER_ATTENDANCE_PAGE, "read"),
         _op(
             "read.profile",
             "POST",
             PATH_STUDENT_PROFILE,
             "read",
-            body_keys=frozenset({FIELD_AUTHORIZED_ID, FIELD_CSRF, "verifyMenu"}),
+            body_keys=_MENU_BODY,
         ),
         _op(
             "read.semester_list_page",
             "POST",
             PATH_SEMESTER_ATTENDANCE_PAGE,
             "read",
-            body_keys=frozenset({FIELD_AUTHORIZED_ID, FIELD_CSRF, "verifyMenu"}),
+            body_keys=_MENU_BODY,
         ),
         _op(
             "read.attendance",
             "POST",
             PATH_PROCESS_ATTENDANCE,
             "read",
-            body_keys=frozenset(
-                {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_SEMESTER_SUB_ID}
-            ),
+            body_keys=_AUTH_SEM_X,
         ),
         _op(
             "read.attendance_detail",
@@ -204,31 +231,60 @@ OPERATIONS: dict[str, OperationSpec] = {
             ),
         ),
         _op(
+            "read.timetable_page",
+            "POST",
+            PATH_STUDENT_TIMETABLE_PAGE,
+            "read",
+            body_keys=_MENU_BODY,
+        ),
+        _op(
             "read.timetable",
             "POST",
             PATH_PROCESS_TIMETABLE,
             "read",
-            body_keys=frozenset(
-                {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_SEMESTER_SUB_ID}
-            ),
+            body_keys=_AUTH_SEM_X,
+        ),
+        _op(
+            "read.marks_page",
+            "POST",
+            PATH_STUDENT_MARKS_PAGE,
+            "read",
+            body_keys=_MENU_BODY,
         ),
         _op(
             "read.marks",
             "POST",
             PATH_STUDENT_MARKS,
             "read",
-            body_keys=frozenset(
-                {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_SEMESTER_SUB_ID}
-            ),
+            body_keys=_AUTH_SEM,
+        ),
+        _op(
+            "read.exam_schedule_page",
+            "POST",
+            PATH_EXAM_SCHEDULE_PAGE,
+            "read",
+            body_keys=_MENU_BODY,
         ),
         _op(
             "read.exam_schedule",
             "POST",
             PATH_EXAM_SCHEDULE,
             "read",
-            body_keys=frozenset(
-                {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_SEMESTER_SUB_ID}
-            ),
+            body_keys=_AUTH_SEM,
+        ),
+        _op(
+            "read.grade_view_page",
+            "POST",
+            PATH_GRADE_VIEW_PAGE,
+            "read",
+            body_keys=_MENU_BODY,
+        ),
+        _op(
+            "read.grade_view",
+            "POST",
+            PATH_GRADE_VIEW_DATA,
+            "read",
+            body_keys=_AUTH_SEM,
         ),
         _op(
             "read.grade_history",
@@ -243,6 +299,13 @@ OPERATIONS: dict[str, OperationSpec] = {
             PATH_STUDENT_COURSE_PAGE,
             "read",
             body_keys=frozenset({FIELD_AUTHORIZED_ID, FIELD_CSRF}),
+        ),
+        _op(
+            "read.course_page_consolidated",
+            "POST",
+            PATH_COURSE_PAGE_CONSOLIDATED,
+            "read",
+            body_keys=_MENU_BODY,
         ),
         _op(
             "read.course_semesters",
@@ -276,13 +339,66 @@ OPERATIONS: dict[str, OperationSpec] = {
             ),
         ),
         _op(
-            "read.academic_calendar",
+            "read.calendar_preview",
             "POST",
-            PATH_ACADEMIC_CALENDAR,
+            PATH_CALENDAR_PREVIEW,
+            "read",
+            body_keys=_MENU_BODY,
+        ),
+        _op(
+            "read.calendar_semester_dates",
+            "POST",
+            PATH_CALENDAR_SEMESTER_DATES,
             "read",
             body_keys=frozenset(
-                {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_SEMESTER_SUB_ID}
+                {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_SEM_SUB_ID}
             ),
+        ),
+        _op(
+            "read.calendar_month",
+            "POST",
+            PATH_PROCESS_CALENDAR,
+            "read",
+            body_keys=_CALENDAR_BODY,
+        ),
+        _op(
+            "read.hod_dean",
+            "POST",
+            PATH_HOD_DEAN,
+            "read",
+            body_keys=_MENU_BODY,
+        ),
+        _op(
+            "read.faculty_search_page",
+            "POST",
+            PATH_FACULTY_SEARCH_PAGE,
+            "read",
+            body_keys=_MENU_BODY,
+        ),
+        _op(
+            "read.faculty_search",
+            "POST",
+            PATH_FACULTY_SEARCH,
+            "read",
+            body_keys=frozenset(
+                {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_EMP_ID, FIELD_X}
+            ),
+        ),
+        _op(
+            "read.faculty_detail",
+            "POST",
+            PATH_FACULTY_DETAIL,
+            "read",
+            body_keys=frozenset(
+                {FIELD_AUTHORIZED_ID, FIELD_CSRF, FIELD_EMP_ID, FIELD_X}
+            ),
+        ),
+        _op(
+            "read.proctor",
+            "POST",
+            PATH_PROCTOR,
+            "read",
+            body_keys=_MENU_BODY,
         ),
         _op(
             "read.spotlight_download",

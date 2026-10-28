@@ -7,6 +7,7 @@ import re
 from bs4 import BeautifulSoup
 
 from vtop_mcp.models.profile import Profile
+from vtop_mcp.parsers._common import accordion_value
 
 
 def _mask_email(email: str) -> str:
@@ -21,51 +22,65 @@ def _mask_email(email: str) -> str:
     return f"{masked_local}@{domain}"
 
 
-def _label_value_pairs(soup: BeautifulSoup) -> dict[str, str]:
-    pairs: dict[str, str] = {}
-    for row in soup.find_all("tr"):
-        cells = row.find_all(["th", "td"])
-        if len(cells) < 2:
-            continue
-        key = cells[0].get_text(" ", strip=True).lower()
-        val = cells[1].get_text(" ", strip=True)
-        if key and val:
-            pairs[key] = val
-    for label in soup.find_all(["label", "span", "strong"]):
+def _header_label_value(soup: BeautifulSoup, key_phrase: str) -> str | None:
+    labels = soup.find_all("label", class_="col-form-label")
+    key_lower = key_phrase.lower()
+    for i, label in enumerate(labels):
         text = label.get_text(" ", strip=True)
-        if ":" not in text:
+        if key_lower not in text.lower():
             continue
-        key, val = text.split(":", 1)
-        key = key.strip().lower()
-        val = val.strip()
-        if key and val and key not in pairs:
-            pairs[key] = val
-    return pairs
+        style = label.get("style") or ""
+        if "c7254e" in style or text.endswith(":"):
+            if i + 1 < len(labels):
+                value = labels[i + 1].get_text(" ", strip=True)
+                if value and key_lower not in value.lower():
+                    return value
+        elif "c7254e" not in style and text and not text.endswith(":"):
+            return text
+    return None
+
+
+def _profile_name(soup: BeautifulSoup) -> str | None:
+    photo = soup.find("img", class_=re.compile(r"img-rounded|profile", re.I))
+    if photo:
+        for tag in photo.find_all_previous(["h3", "h4", "h5"], limit=3):
+            text = tag.get_text(" ", strip=True)
+            if text and len(text) < 80:
+                return text
+        for tag in photo.find_all_next(["h3", "h4", "h5"], limit=3):
+            text = tag.get_text(" ", strip=True)
+            if text and len(text) < 80:
+                return text
+    personal = accordion_value(soup, "PERSONAL", "name")
+    if personal:
+        return personal
+    return _header_label_value(soup, "student name")
 
 
 def parse_profile(html: str) -> Profile:
     soup = BeautifulSoup(html, "html.parser")
-    pairs = _label_value_pairs(soup)
+    regno = _header_label_value(soup, "register")
+    programme_branch = _header_label_value(soup, "program")
+    programme: str | None = None
+    branch: str | None = None
+    if programme_branch and " - " in programme_branch:
+        programme, branch = programme_branch.split(" - ", 1)
+    elif programme_branch:
+        programme = programme_branch
 
-    def pick(*keys: str) -> str | None:
-        for key in keys:
-            for label, value in pairs.items():
-                if key in label:
-                    return value
-        return None
-
-    email = pick("email", "e-mail")
-    regno = pick("register", "registration", "reg no", "student id")
-    if not regno:
-        match = re.search(r"\b(2[0-9][A-Z]{3}[0-9]{4,})\b", html)
-        regno = match.group(1) if match else None
+    email = _header_label_value(soup, "email") or _header_label_value(
+        soup, "e-mail"
+    )
+    mobile = accordion_value(soup, "PERSONAL", "mobile") or accordion_value(
+        soup, "PERSONAL", "phone"
+    )
 
     return Profile(
         regno=regno,
-        name=pick("name", "student name"),
-        programme=pick("programme", "program", "degree"),
-        branch=pick("branch", "specialization"),
-        school=pick("school", "campus"),
+        name=_profile_name(soup),
+        programme=programme,
+        branch=branch,
+        school=_header_label_value(soup, "school"),
         email=_mask_email(email) if email else None,
-        mobile=pick("mobile", "phone", "contact"),
+        mobile=mobile,
     )

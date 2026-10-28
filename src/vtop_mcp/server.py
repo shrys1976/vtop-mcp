@@ -21,13 +21,18 @@ from vtop_mcp.models.profile import Profile
 from vtop_mcp.models.semesters import SemesterList
 from vtop_mcp.models.session import SessionStatus
 from vtop_mcp.server_tools import with_auth
+from vtop_mcp.services._http_helpers import VtopResponseError
 from vtop_mcp.services.attendance import fetch_attendance
 from vtop_mcp.services.bootstrap import NotAuthenticatedError, resolve_auth_context
 from vtop_mcp.services.calendar import fetch_academic_calendar
 from vtop_mcp.services.courses import fetch_courses
 from vtop_mcp.services.exams import fetch_exam_schedule
+from vtop_mcp.services.faculty import FacultyQueryTooShortError, fetch_faculty
+from vtop_mcp.services.grades import fetch_grades
+from vtop_mcp.services.hod_dean import fetch_hod_dean
 from vtop_mcp.services.marks import fetch_marks
 from vtop_mcp.services.profile import fetch_profile
+from vtop_mcp.services.proctor import fetch_proctor
 from vtop_mcp.services.semesters import fetch_semesters
 from vtop_mcp.services.spotlight import fetch_spotlight
 from vtop_mcp.services.timetable import fetch_timetable
@@ -197,6 +202,8 @@ async def get_profile() -> dict[str, Any]:
         app.set_profile_cache(profile)
     except NotAuthenticatedError as exc:
         return err_payload("not_authenticated", str(exc))
+    except VtopResponseError as exc:
+        return err_payload("vtop_error", str(exc))
     return ok_payload(profile)
 
 
@@ -233,14 +240,15 @@ async def get_exams(semester_id: str | None = None) -> dict[str, Any]:
         schedule = await fetch_exam_schedule(app.client, ctx, semester_id)
     except NotAuthenticatedError as exc:
         return err_payload("not_authenticated", str(exc))
+    except VtopResponseError as exc:
+        return err_payload("vtop_error", str(exc))
     return ok_payload(schedule)
 
 
 @mcp.tool(name="get_spotlight")
 async def get_spotlight() -> dict[str, Any]:
-    """Fetch VTOP spotlight announcements (read-only)."""
-    items = await fetch_spotlight(app.client)
-    return ok_payload(items)
+    """Fetch spotlight links from the post-login dashboard."""
+    return await with_auth(app, fetch_spotlight)
 
 
 @mcp.tool(name="get_academic_calendar")
@@ -251,7 +259,45 @@ async def get_academic_calendar(semester_id: str | None = None) -> dict[str, Any
         calendar = await fetch_academic_calendar(app.client, ctx, semester_id)
     except NotAuthenticatedError as exc:
         return err_payload("not_authenticated", str(exc))
+    except VtopResponseError as exc:
+        return err_payload("vtop_error", str(exc))
     return ok_payload(calendar)
+
+
+@mcp.tool(name="get_grades")
+async def get_grades(semester_id: str) -> dict[str, Any]:
+    """Fetch semester grades (use list_semesters for semester_id)."""
+    return await with_auth(app, fetch_grades, semester_id)
+
+
+@mcp.tool(name="get_hod_dean")
+async def get_hod_dean() -> dict[str, Any]:
+    """Fetch school dean and head-of-department contact details."""
+    return await with_auth(app, fetch_hod_dean)
+
+
+@mcp.tool(name="get_proctor")
+async def get_proctor() -> dict[str, Any]:
+    """Fetch assigned proctor contact details."""
+    return await with_auth(app, fetch_proctor)
+
+
+@mcp.tool(name="search_faculty")
+async def search_faculty(
+    query: str,
+    employee_id: str | None = None,
+) -> dict[str, Any]:
+    """Search faculty by name, or load detail when employee_id is set."""
+    try:
+        ctx = await resolve_auth_context(app.client)
+        result = await fetch_faculty(app.client, ctx, query, employee_id)
+    except NotAuthenticatedError as exc:
+        return err_payload("not_authenticated", str(exc))
+    except VtopResponseError as exc:
+        return err_payload("vtop_error", str(exc))
+    except FacultyQueryTooShortError as exc:
+        return err_payload("invalid_query", str(exc))
+    return ok_payload(result)
 
 
 @mcp.resource("vtop://session/status")

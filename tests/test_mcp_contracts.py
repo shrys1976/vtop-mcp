@@ -16,11 +16,15 @@ from vtop_mcp.server import (
     get_attendance,
     get_courses,
     get_exams,
+    get_grades,
+    get_hod_dean,
     get_marks,
     get_profile,
+    get_proctor,
     get_spotlight,
     get_timetable,
     list_semesters,
+    search_faculty,
     vtop_logout,
     vtop_session_status,
 )
@@ -44,6 +48,12 @@ def _auth_bootstrap(fixture_name: str) -> None:
     html = (FIXTURES / fixture_name).read_text()
     respx.get(f"{BASE_URL}/vtop/open/page").mock(
         return_value=httpx.Response(200, text=html)
+    )
+
+
+def _mock_menu_post(path: str, fixture: str) -> None:
+    respx.post(f"{BASE_URL}{path}").mock(
+        return_value=httpx.Response(200, text=(FIXTURES / fixture).read_text())
     )
 
 
@@ -83,45 +93,56 @@ async def test_contract_get_profile(app) -> None:
     )
     payload = await get_profile()
     assert payload["ok"] is True
-    assert payload.get("name") == "Sample Student"
+    assert payload.get("regno") == "21BCE0000"
 
 
 @pytest.mark.asyncio
 @respx.mock
 @pytest.mark.parametrize(
-    ("tool", "fixture", "path", "extra"),
+    ("tool", "fixture", "shell_path", "data_path", "extra"),
     [
         (
             get_attendance,
             "attendance.html",
+            "/vtop/academics/common/StudentAttendance",
             "/vtop/processViewStudentAttendance",
-            {"semester_id": "VL2025261"},
+            {"semester_id": "VL20262701"},
         ),
         (
             get_timetable,
             "timetable.html",
+            "/vtop/academics/common/StudentTimeTable",
             "/vtop/processViewTimeTable",
-            {"semester_id": "VL2025261"},
+            {"semester_id": "VL20262701"},
         ),
         (
             get_marks,
             "marks.html",
+            "/vtop/examinations/StudentMarkView",
             "/vtop/examinations/doStudentMarkView",
-            {"semester_id": "VL2025261"},
+            {"semester_id": "VL20262701"},
         ),
         (
             get_courses,
             "courses.html",
-            "/vtop/getSlotIdForCoursePage",
-            {"semester_id": "VL2025261"},
+            "/vtop/academics/common/StudentTimeTable",
+            "/vtop/processViewTimeTable",
+            {"semester_id": "VL20262701"},
         ),
     ],
 )
-async def test_contract_semester_tools(app, tool, fixture, path, extra) -> None:
+async def test_contract_semester_tools(
+    app, tool, fixture, shell_path, data_path, extra
+) -> None:
     app.client.session_data.authenticated = True
     _auth_bootstrap("semesters.html")
     body = (FIXTURES / fixture).read_text()
-    respx.post(f"{BASE_URL}{path}").mock(return_value=httpx.Response(200, text=body))
+    respx.post(f"{BASE_URL}{shell_path}").mock(
+        return_value=httpx.Response(200, text=body)
+    )
+    respx.post(f"{BASE_URL}{data_path}").mock(
+        return_value=httpx.Response(200, text=body)
+    )
     payload = await tool(**extra)
     assert payload["ok"] is True
 
@@ -131,10 +152,14 @@ async def test_contract_semester_tools(app, tool, fixture, path, extra) -> None:
 async def test_contract_get_exams(app) -> None:
     app.client.session_data.authenticated = True
     _auth_bootstrap("semesters.html")
-    respx.post(f"{BASE_URL}/vtop/examinations/doSearchExamScheduleForStudent").mock(
-        return_value=httpx.Response(200, text=(FIXTURES / "exams.html").read_text())
+    exams = (FIXTURES / "exams.html").read_text()
+    respx.post(f"{BASE_URL}/vtop/examinations/StudExamSchedule").mock(
+        return_value=httpx.Response(200, text=exams)
     )
-    payload = await get_exams(semester_id="VL2025261")
+    respx.post(f"{BASE_URL}/vtop/examinations/doSearchExamScheduleForStudent").mock(
+        return_value=httpx.Response(200, text=exams)
+    )
+    payload = await get_exams(semester_id="VL20262701")
     assert payload["ok"] is True
     assert "exams" in payload
 
@@ -144,10 +169,18 @@ async def test_contract_get_exams(app) -> None:
 async def test_contract_get_academic_calendar(app) -> None:
     app.client.session_data.authenticated = True
     _auth_bootstrap("semesters.html")
-    respx.post(f"{BASE_URL}/vtop/academics/common/CalendarPage").mock(
-        return_value=httpx.Response(200, text=(FIXTURES / "calendar.html").read_text())
+    preview = (FIXTURES / "calendar_preview.html").read_text()
+    month = (FIXTURES / "calendar.html").read_text()
+    respx.post(f"{BASE_URL}/vtop/academics/common/CalendarPreview").mock(
+        return_value=httpx.Response(200, text=preview)
     )
-    payload = await get_academic_calendar(semester_id="VL2025261")
+    respx.post(f"{BASE_URL}/vtop/getDateForSemesterPreview").mock(
+        return_value=httpx.Response(200, text=preview)
+    )
+    respx.post(f"{BASE_URL}/vtop/processViewCalendar").mock(
+        return_value=httpx.Response(200, text=month)
+    )
+    payload = await get_academic_calendar(semester_id="VL20262701")
     assert payload["ok"] is True
     assert "events" in payload
 
@@ -155,7 +188,9 @@ async def test_contract_get_academic_calendar(app) -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_contract_get_spotlight(app) -> None:
-    respx.get(f"{BASE_URL}/vtop/login").mock(
+    app.client.session_data.authenticated = True
+    _auth_bootstrap("semesters.html")
+    respx.post(f"{BASE_URL}/vtop/home").mock(
         return_value=httpx.Response(
             200, text=(FIXTURES / "spotlight.html").read_text()
         )
@@ -163,3 +198,63 @@ async def test_contract_get_spotlight(app) -> None:
     payload = await get_spotlight()
     assert payload["ok"] is True
     assert "items" in payload
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_contract_get_grades(app) -> None:
+    app.client.session_data.authenticated = True
+    _auth_bootstrap("semesters.html")
+    grades = (FIXTURES / "grades.html").read_text()
+    respx.post(
+        f"{BASE_URL}/vtop/examinations/examGradeView/StudentGradeView"
+    ).mock(return_value=httpx.Response(200, text=grades))
+    respx.post(
+        f"{BASE_URL}/vtop/examinations/examGradeView/doStudentGradeView"
+    ).mock(return_value=httpx.Response(200, text=grades))
+    payload = await get_grades(semester_id="VL20252605")
+    assert payload["ok"] is True
+    assert payload.get("gpa") == 8.0
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_contract_get_hod_dean(app) -> None:
+    app.client.session_data.authenticated = True
+    _auth_bootstrap("semesters.html")
+    respx.post(f"{BASE_URL}/vtop/hrms/viewHodDeanDetails").mock(
+        return_value=httpx.Response(200, text=(FIXTURES / "hod_dean.html").read_text())
+    )
+    payload = await get_hod_dean()
+    assert payload["ok"] is True
+    assert payload.get("dean") is not None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_contract_get_proctor(app) -> None:
+    app.client.session_data.authenticated = True
+    _auth_bootstrap("semesters.html")
+    respx.post(f"{BASE_URL}/vtop/proctor/viewProctorDetails").mock(
+        return_value=httpx.Response(200, text=(FIXTURES / "proctor.html").read_text())
+    )
+    payload = await get_proctor()
+    assert payload["ok"] is True
+    assert payload.get("faculty_id") == "11960"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_contract_search_faculty(app) -> None:
+    app.client.session_data.authenticated = True
+    _auth_bootstrap("semesters.html")
+    search = (FIXTURES / "faculty_search.html").read_text()
+    respx.post(f"{BASE_URL}/vtop/hrms/employeeSearchForStudent").mock(
+        return_value=httpx.Response(200, text=search)
+    )
+    respx.post(f"{BASE_URL}/vtop/hrms/EmployeeSearchForStudent").mock(
+        return_value=httpx.Response(200, text=search)
+    )
+    payload = await search_faculty(query="sample")
+    assert payload["ok"] is True
+    assert len(payload.get("matches", [])) == 1
