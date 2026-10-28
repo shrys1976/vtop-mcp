@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from html import unescape
 
 from bs4 import BeautifulSoup, Tag
 
@@ -11,6 +12,15 @@ from vtop_mcp.models.calendar import CalendarEvent
 from vtop_mcp.parsers._common import cell_text
 
 _MONTH_HEADING_RE = re.compile(r"^[A-Z]+ \d{4}$")
+_ONCLICK_CAL_DATE_RE = re.compile(
+    r"processViewCalendar\s*\(\s*"
+    r"(?:'|&#39;|&apos;|\")"
+    r"(\d{2}-[A-Za-z]{3}-\d{4})"
+    r"(?:'|&#39;|&apos;|\")"
+    r"\s*\)",
+    re.I,
+)
+_BTN_MONTH_LABEL_RE = re.compile(r"^[A-Z]{3}-\d{4}$", re.I)
 
 _MONTHS = {
     name: index
@@ -55,12 +65,40 @@ def normalize_cal_date(cal_date: str) -> str:
     return f"{match.group(1)}-{match.group(2).upper()}-{match.group(3)}"
 
 
+def _dates_from_month_button(anchor: Tag) -> str | None:
+    onclick = anchor.get("onclick") or ""
+    match = _ONCLICK_CAL_DATE_RE.search(onclick)
+    if match:
+        return normalize_cal_date(match.group(1))
+    label = cell_text(anchor).upper()
+    if _BTN_MONTH_LABEL_RE.fullmatch(label):
+        return normalize_cal_date(f"01-{label}")
+    return None
+
+
+def _dates_from_list_semester_dom(soup: BeautifulSoup) -> list[str]:
+    container = soup.find(id="getListForSemester")
+    if container is None:
+        return []
+    dates: list[str] = []
+    anchors = container.select("a.btn")
+    if not anchors:
+        anchors = container.find_all("a")
+    for anchor in anchors:
+        cal_date = _dates_from_month_button(anchor)
+        if cal_date:
+            dates.append(cal_date)
+    return dates
+
+
 def extract_calendar_month_dates(html: str) -> list[str]:
-    raw = re.findall(
-        r"processViewCalendar\s*\(\s*['\"](\d{2}-[A-Za-z]{3}-\d{4})['\"]",
-        html,
-        re.I,
-    )
+    soup = BeautifulSoup(html, "html.parser")
+    dates = _dates_from_list_semester_dom(soup)
+    if dates:
+        return list(dict.fromkeys(dates))
+
+    decoded = unescape(html)
+    raw = _ONCLICK_CAL_DATE_RE.findall(decoded)
     return list(dict.fromkeys(normalize_cal_date(item) for item in raw))
 
 

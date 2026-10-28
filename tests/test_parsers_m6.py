@@ -6,6 +6,7 @@ from pathlib import Path
 
 from vtop_mcp.parsers.attendance import parse_attendance
 from vtop_mcp.parsers.calendar import (
+    extract_calendar_month_dates,
     parse_calendar_month,
     parse_default_calendar_semester,
 )
@@ -74,6 +75,12 @@ def test_parse_spotlight_fixture() -> None:
     assert len(data.items) == 2
     assert data.items[0].file_id == "820"
     assert data.items[1].url is not None
+
+
+def test_extract_calendar_month_dates_entity_quotes() -> None:
+    html = (FIXTURES / "calendar_list_semester_entities.html").read_text()
+    dates = extract_calendar_month_dates(html)
+    assert dates == ["01-JUL-2026", "01-AUG-2026", "01-NOV-2026"]
 
 
 def test_parse_default_calendar_semester() -> None:
