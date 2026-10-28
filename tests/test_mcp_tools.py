@@ -9,7 +9,7 @@ from cryptography.fernet import Fernet
 
 from vtop_mcp.app_state import VtopApp
 from vtop_mcp.config import Settings
-from vtop_mcp.server import list_semesters, vtop_logout, vtop_session_status
+from vtop_mcp.server import get_spotlight, list_semesters, vtop_logout, vtop_session_status
 from vtop_mcp.vtop.constants import BASE_URL
 
 
@@ -64,3 +64,15 @@ async def test_list_semesters_happy_path(vtop_app) -> None:
     payload = await list_semesters()
     assert payload["ok"] is True
     assert len(payload["semesters"]) == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_spotlight_no_auth_required(vtop_app) -> None:
+    fixture = open("tests/fixtures/responses/spotlight.html").read()
+    respx.get(f"{BASE_URL}/vtop/login").mock(
+        return_value=httpx.Response(200, text=fixture)
+    )
+    payload = await get_spotlight()
+    assert payload["ok"] is True
+    assert len(payload["items"]) == 2
