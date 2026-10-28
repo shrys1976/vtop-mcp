@@ -34,6 +34,7 @@ from vtop_mcp.vtop.constants import (
     PATH_INIT_PAGE,
     PATH_LOGIN_LANDING,
     PATH_LOGIN_SUBMIT,
+    PATH_OPEN_PAGE,
     PATH_PRELOGIN_SETUP,
     PATH_PROCESS_ATTENDANCE,
     PATH_PROCESS_ATTENDANCE_DETAIL,
@@ -160,6 +161,8 @@ OPERATIONS: dict[str, OperationSpec] = {
             body_keys=frozenset({FIELD_CSRF}),
         ),
         # --- Read ---
+        _op("read.open_page", "GET", PATH_OPEN_PAGE, "read"),
+        _op("read.attendance_page", "GET", PATH_SEMESTER_ATTENDANCE_PAGE, "read"),
         _op(
             "read.profile",
             "POST",

@@ -9,10 +9,14 @@ dependencies = [
   "cryptography>=42",
   "httpx>=0.27",
   "keyring>=25",
+  "mcp[cli]>=2.3.0",
   "pillow>=10",
   "pydantic>=2",
   "pydantic-settings>=2",
 ]
+
+[project.scripts]
+vtop-mcp = "vtop_mcp.server:main"
 
 [project.optional-dependencies]
 ocr = ["ddddocr>=1.5"]
